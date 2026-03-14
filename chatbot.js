@@ -1,71 +1,48 @@
 const express = require('express');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
-const axios = require('axios'); // Thư viện để gọi API OpenRouter
+const axios = require('axios');
 
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
-// 1. Cấu hình Google Sheet
+// Lấy thông tin từ Render Environment Variables
+const S_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+const S_KEY = process.env.GOOGLE_PRIVATE_KEY ? process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n') : null;
+const S_ID = process.env.GOOGLE_SHEET_ID;
+const AI_KEY = process.env.OPENROUTER_API_KEY;
+
 const auth = new JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    email: S_EMAIL,
+    key: S_KEY,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
-const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1-2CB8yW-xgVeY7VMKvinfH1CwMKGiWZJkNC2ENqnl0g';
-// 2. Giao diện Chat (Giữ nguyên giao diện xanh đẹp mắt)
+
 app.get('/', (req, res) => {
     res.send(`
         <html>
-        <head>
-            <title>AI Sales Master - Đạt Phan</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <style>
-                body { font-family: sans-serif; display: flex; justify-content: center; background: #f0f2f5; margin: 0; }
-                #chat-container { width: 100%; max-width: 500px; height: 100vh; background: white; display: flex; flex-direction: column; }
-                #header { padding: 15px; background: #1a73e8; color: white; text-align: center; font-weight: bold; font-size: 1.2em; }
-                #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
-                .msg { margin-bottom: 15px; padding: 12px; border-radius: 15px; max-width: 85%; line-height: 1.5; }
-                .user { align-self: flex-end; background: #1a73e8; color: white; }
-                .bot { align-self: flex-start; background: #e8eaed; color: #202124; }
-                #input-area { display: flex; padding: 15px; border-top: 1px solid #ddd; background: white; }
-                input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 25px; outline: none; }
-                button { margin-left: 10px; padding: 10px 20px; background: #1a73e8; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; }
-            </style>
-        </head>
-        <body>
-            <div id="chat-container">
-                <div id="header">AI SALES MASTER v7.0 (ONLINE)</div>
-                <div id="messages"></div>
-                <div id="input-area">
-                    <input type="text" id="userInput" placeholder="Hỏi về sản phẩm hoặc tư vấn...">
-                    <button onclick="sendMessage()">GỬI</button>
-                </div>
+        <head><title>Debug Bot - Đạt Phan</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+        <body style="font-family:sans-serif; padding:20px; background:#f4f4f4;">
+            <div id="chat-container" style="max-width:500px; margin:auto; background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+                <h3>Hệ Thống Trợ Lý AI</h3>
+                <div id="log" style="height:300px; overflow-y:auto; border:1px solid #ddd; padding:10px; margin-bottom:10px; background:#fafafa; font-size:13px;"></div>
+                <input type="text" id="inp" style="width:75%; padding:10px;" placeholder="Hỏi gì đó...">
+                <button onclick="send()" style="width:20%; padding:10px; background:#007bff; color:white; border:none;">Gửi</button>
             </div>
             <script>
-                async function sendMessage() {
-                    const input = document.getElementById('userInput');
-                    const msgDiv = document.getElementById('messages');
-                    if(!input.value) return;
-
-                    const userText = input.value;
-                    msgDiv.innerHTML += '<div class="msg user">' + userText + '</div>';
-                    input.value = '';
-                    msgDiv.scrollTop = msgDiv.scrollHeight;
-
-                    try {
-                        const res = await fetch('/chat', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ message: userText })
-                        });
-                        const data = await res.json();
-                        msgDiv.innerHTML += '<div class="msg bot">' + data.reply.replace(/\\n/g, '<br>') + '</div>';
-                    } catch (e) {
-                        msgDiv.innerHTML += '<div class="msg bot">⚠️ Lỗi kết nối AI...</div>';
-                    }
-                    msgDiv.scrollTop = msgDiv.scrollHeight;
+                async function send() {
+                    const log = document.getElementById('log');
+                    const txt = document.getElementById('inp').value;
+                    log.innerHTML += '<b>Bạn:</b> ' + txt + '<br>';
+                    const res = await fetch('/chat', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ message: txt })
+                    });
+                    const data = await res.json();
+                    log.innerHTML += '<b>Bot:</b> ' + data.reply + '<br><hr>';
+                    log.scrollTop = log.scrollHeight;
                 }
             </script>
         </body>
@@ -73,42 +50,48 @@ app.get('/', (req, res) => {
     `);
 });
 
-// 3. Logic xử lý Chat với OpenRouter AI
 app.post('/chat', async (req, res) => {
-    const userMessage = req.body.message;
-
+    const msg = req.body.message;
+    let step = "Bắt đầu";
     try {
-        // A. Đọc dữ liệu từ Google Sheet để làm kiến thức cho AI
-        const doc = new GoogleSpreadsheet(SHEET_ID, auth);
+        // Kiểm tra biến môi trường
+        if (!S_EMAIL || !S_KEY || !S_ID) {
+            return res.json({ reply: "LỖI: Thiếu biến môi trường GOOGLE (Email, Key hoặc ID) trên Render." });
+        }
+        if (!AI_KEY) {
+            return res.json({ reply: "LỖI: Thiếu OPENROUTER_API_KEY trên Render." });
+        }
+
+        step = "Đang kết nối Google Sheet";
+        const doc = new GoogleSpreadsheet(S_ID, auth);
         await doc.loadInfo();
+        
+        step = "Đang đọc dữ liệu hàng hóa";
         const sheet = doc.sheetsByIndex[0];
         const rows = await sheet.getRows();
         
-        // Chuyển dữ liệu Sheet thành văn bản để gửi cho AI
-        let khoHang = rows.map(r => `Sản phẩm: \${r.get('Tên')}, Giá: \${r.get('Giá')}`).join('\\n');
+        // Chuyển dữ liệu thành văn bản (Xử lý cả trường hợp cột không có dấu)
+        let dataHàng = rows.map(r => {
+            const ten = r.get('Tên') || r.get('Ten') || "Không tên";
+            const gia = r.get('Giá') || r.get('Gia') || "Liên hệ";
+            return `SP: ${ten} - Giá: ${gia}`;
+        }).join('\n');
 
-        // B. Gọi OpenRouter API (Giống hệt bản Python của Đạt)
-        const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+        step = "Đang gọi AI OpenRouter";
+        const aiRes = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
             model: "openrouter/auto",
             messages: [
-                {
-                    role: "system",
-                    content: `Bạn là trợ lý bán hàng của anh Đạt Phan. Đây là dữ liệu kho hàng hiện tại: \\n\${khoHang}. \\nHãy tư vấn khách hàng nhiệt tình, vui vẻ và chốt đơn.`
-                },
-                { role: "user", content: userMessage }
-            ],
-            temperature: 0.3
-        }, {
-            headers: { "Authorization": `Bearer \${process.env.OPENROUTER_API_KEY}` }
-        });
+                { role: "system", content: `Bạn là trợ lý anh Đạt Phan. Dữ liệu kho: ${dataHàng}` },
+                { role: "user", content: msg }
+            ]
+        }, { headers: { "Authorization": `Bearer ${AI_KEY}` }, timeout: 15000 });
 
-        const aiReply = response.data.choices[0].message.content;
-        res.json({ reply: aiReply });
+        res.json({ reply: aiRes.data.choices[0].message.content });
 
-    } catch (error) {
-        console.error(error);
-        res.json({ reply: "Dạ em đang bận cập nhật kho, anh đợi em xíu nhé!" });
+    } catch (err) {
+        console.error(err);
+        res.json({ reply: `LỖI tại bước [${step}]: ${err.message}` });
     }
 });
 
-app.listen(PORT, () => console.log(`Hệ thống AI Master chạy tại cổng \${PORT}`));
+app.listen(PORT, () => console.log("Bot Live!"));
