@@ -7,126 +7,73 @@ const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
-// 1. Cấu hình xác thực từ biến môi trường Render
-const S_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-const S_KEY = process.env.GOOGLE_PRIVATE_KEY ? process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n') : null;
+// Cấu hình xác thực
+const auth = new JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: process.env.GOOGLE_PRIVATE_KEY ? process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n') : null,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+});
 const S_ID = process.env.GOOGLE_SHEET_ID;
 const AI_KEY = process.env.OPENROUTER_API_KEY;
 
-const auth = new JWT({
-    email: S_EMAIL,
-    key: S_KEY,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
+app.get('/', (req, res) => { res.send('<h1>Hệ thống AI Master v3 - Đạt Phan</h1>'); });
 
-// 2. Giao diện Cửa sổ Chat chuyên nghiệp
-app.get('/', (req, res) => {
-    res.send(`
-        <html>
-        <head>
-            <title>AI Sales Master - Đạt Phan</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <style>
-                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; display: flex; justify-content: center; }
-                #chat-container { width: 100%; max-width: 500px; height: 100vh; background: white; display: flex; flex-direction: column; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-                #header { padding: 15px; background: #1a73e8; color: white; text-align: center; font-weight: bold; font-size: 18px; }
-                #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
-                .msg { margin-bottom: 15px; padding: 12px 16px; border-radius: 18px; max-width: 80%; line-height: 1.5; font-size: 15px; }
-                .user { align-self: flex-end; background: #1a73e8; color: white; border-bottom-right-radius: 4px; }
-                .bot { align-self: flex-start; background: #e8eaed; color: #202124; border-bottom-left-radius: 4px; }
-                #input-area { display: flex; padding: 15px; border-top: 1px solid #eee; background: white; }
-                input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 25px; outline: none; font-size: 15px; }
-                button { margin-left: 10px; padding: 10px 20px; background: #1a73e8; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; }
-                .loading { font-style: italic; color: #888; font-size: 12px; }
-            </style>
-        </head>
-        <body>
-            <div id="chat-container">
-                <div id="header">TRỢ LÝ BÁN HÀNG ĐẠT PHAN</div>
-                <div id="messages"></div>
-                <div id="input-area">
-                    <input type="text" id="userInput" placeholder="Hỏi giá sản phẩm..." onkeypress="if(event.key==='Enter') sendMessage()">
-                    <button onclick="sendMessage()">GỬI</button>
-                </div>
-            </div>
-            <script>
-                const msgDiv = document.getElementById('messages');
-                async function sendMessage() {
-                    const input = document.getElementById('userInput');
-                    if(!input.value.trim()) return;
-
-                    const userText = input.value;
-                    msgDiv.innerHTML += '<div class="msg user">' + userText + '</div>';
-                    input.value = '';
-                    msgDiv.scrollTop = msgDiv.scrollHeight;
-
-                    // Hiệu ứng đang trả lời
-                    const loadingId = 'load-' + Date.now();
-                    msgDiv.innerHTML += '<div class="msg bot loading" id="' + loadingId + '">Đang kiểm tra kho hàng...</div>';
-
-                    try {
-                        const res = await fetch('/chat', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ message: userText })
-                        });
-                        const data = await res.json();
-                        document.getElementById(loadingId).remove();
-                        msgDiv.innerHTML += '<div class="msg bot">' + data.reply.replace(/\\n/g, '<br>') + '</div>';
-                    } catch (e) {
-                        document.getElementById(loadingId).innerText = '⚠️ Lỗi kết nối hệ thống.';
-                    }
-                    msgDiv.scrollTop = msgDiv.scrollHeight;
-                }
-            </script>
-        </body>
-        </html>
-    `);
-});
-
-// 3. Logic xử lý: Đọc Sheet -> Gửi AI -> Trả lời
 app.post('/chat', async (req, res) => {
     const userMessage = req.body.message;
-
     try {
-        // A. Kết nối Google Sheet
         const doc = new GoogleSpreadsheet(S_ID, auth);
         await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0];
-        const rows = await sheet.getRows();
-        
-        // B. Chuyển dữ liệu Sheet thành văn bản (Xử lý linh hoạt tiêu đề cột)
-        let khoHang = rows.map(r => {
-            const ten = r.get('Tên') || r.get('Ten') || r.get('Sản phẩm') || r._rawData[0] || "Không tên";
-            const gia = r.get('Giá') || r.get('Gia') || r._rawData[1] || "Liên hệ";
-            return `Sản phẩm: ${ten} - Giá: ${gia}`;
-        }).join('\n');
 
-        // C. Gọi OpenRouter AI
+        // 1. LẤY THÔNG TIN SHOP (Tab: Thong_Tin_Shop)
+        const infoSheet = doc.sheetsByTitle['Thong_Tin_Shop'];
+        const infoRows = await infoSheet.getRows();
+        let infoShop = infoRows.map(r => `${r.get('Hạng mục')}: ${r.get('Nội dung')}`).join('\n');
+
+        // 2. LẤY DANH SÁCH SẢN PHẨM (Tab: Danh_Sach_SP)
+        const productSheet = doc.sheetsByTitle['Danh_Sach_SP'];
+        const prodRows = await productSheet.getRows();
+        let khoHang = prodRows.map(r => `- ${r.get('Tên')}: ${r.get('Giá')}`).join('\n');
+
+        // 3. GỌI AI ĐỂ XỬ LÝ TƯ VẤN
         const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
             model: "openrouter/auto",
             messages: [
                 {
                     role: "system",
-                    content: `Bạn là trợ lý bán hàng chuyên nghiệp của anh Đạt Phan. 
-                    Dưới đây là danh sách hàng hóa trong kho:
+                    content: `Bạn là trợ lý bán hàng của anh Đạt Phan.
+                    Đây là THÔNG TIN SHOP:
+                    ${infoShop}
+                    
+                    Đây là DANH SÁCH SẢN PHẨM TRONG KHO:
                     ${khoHang}
-                    Nhiệm vụ: Chào hỏi lễ phép, báo giá chính xác dựa trên kho, tư vấn nhiệt tình để chốt đơn.`
+                    
+                    Nhiệm vụ: Dựa vào thông tin shop và kho để tư vấn. Nếu khách chốt đơn, hãy yêu cầu khách để lại: Tên, Sản phẩm muốn mua và Số điện thoại.`
                 },
                 { role: "user", content: userMessage }
             ],
-            temperature: 0.5
-        }, {
-            headers: { "Authorization": `Bearer ${AI_KEY}` },
-            timeout: 20000
-        });
+            temperature: 0.3
+        }, { headers: { "Authorization": `Bearer ${AI_KEY}` } });
 
-        res.json({ reply: response.data.choices[0].message.content });
+        const aiReply = response.data.choices[0].message.content;
+
+        // 4. TỰ ĐỘNG GHI CHỐT ĐƠN (Nếu AI phát hiện khách để lại thông tin đơn hàng)
+        // (Logic đơn giản: Nếu tin nhắn có số điện thoại và tên sản phẩm, chúng ta sẽ lưu vào Tab Chot_Don)
+        if (userMessage.includes("0") && userMessage.length > 20) {
+            const orderSheet = doc.sheetsByTitle['Chot_Don'];
+            await orderSheet.addRow({
+                'Thời gian': new Date().toLocaleString('vi-VN'),
+                'Tên khách': 'Khách hàng mới', 
+                'Sản phẩm': 'Đang kiểm tra...',
+                'Số điện thoại': userMessage.match(/\d+/g)?.[0] || 'N/A'
+            });
+        }
+
+        res.json({ reply: aiReply });
 
     } catch (error) {
-        console.error("Lỗi hệ thống:", error.message);
-        res.json({ reply: "Dạ em đang bận kiểm tra lại sổ sách một chút, anh hỏi lại em sau vài giây nhé!" });
+        console.error(error);
+        res.json({ reply: "Hệ thống đang bận, Đạt kiểm tra lại tên các Sheet nhé!" });
     }
 });
 
-app.listen(PORT, () => console.log(`Hệ thống Live trên cổng ${PORT}`));
+app.listen(PORT, () => console.log(`Hệ thống chạy chuẩn 3 Sheet tại cổng ${PORT}`));
