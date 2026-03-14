@@ -10,8 +10,8 @@ const PORT = process.env.PORT || 3000;
 // ============================================================
 const DANH_SACH_SHEET = {
     'chinh': '14n9UPiw6-Bx8VzTqVMbTyZrpGjaWOgkgm46PKrs5b48', // File ban đầu
-    'kho': 'ID_FILE_KHO_MOI_CUA_BAN',                        // Dán ID file mới vào đây
-    'donhang': 'ID_FILE_DON_HANG_MOI_CUA_BAN'               // Thêm bao nhiêu tùy ý
+    'kho': '1-2CB8yW-xgVeY7VMKvinfH1CwMKGiWZJkNC2ENqnl0g',                        // Dán ID file mới vào đây
+    'donhang': '1Kp1epjPr-d47iByr2SKc6BPB2asxKuYzXQ7ToZ6coFA'               // Thêm bao nhiêu tùy ý https://docs.google.com/spreadsheets/d/....................................../edit?usp=drive_link
 };
 
 // Hàm xử lý ghi dữ liệu chung
