@@ -5,49 +5,73 @@ const { JWT } = require('google-auth-library');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Hàm chính để ghi dữ liệu vào Google Sheet
-async function writeToSheet() {
+// ============================================================
+// BƯỚC 1: QUẢN LÝ DANH SÁCH FILE SHEET CỦA BẠN TẠI ĐÂY
+// ============================================================
+const DANH_SACH_SHEET = {
+    'chinh': '14n9UPiw6-Bx8VzTqVMbTyZrpGjaWOgkgm46PKrs5b48', // File ban đầu
+    'kho': 'ID_FILE_KHO_MOI_CUA_BAN',                        // Dán ID file mới vào đây
+    'donhang': 'ID_FILE_DON_HANG_MOI_CUA_BAN'               // Thêm bao nhiêu tùy ý
+};
+
+// Hàm xử lý ghi dữ liệu chung
+async function ghiDuLieu(fileKey) {
     try {
-        // 1. Lấy "chìa khóa" từ ngăn kéo Environment của Render
+        const sheetId = DANH_SACH_SHEET[fileKey];
+        if (!sheetId || sheetId.includes('ID_CUA_FILE')) {
+            return `Lỗi: Bạn chưa cấu hình ID cho file "${fileKey}" trong code!`;
+        }
+
         const serviceAccountAuth = new JWT({
             email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-            // Quan trọng: Chuyển đổi các ký tự \n trong chìa khóa để Google hiểu được
             key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
             scopes: ['https://www.googleapis.com/auth/spreadsheets'],
         });
 
-        const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
-
-        // 2. Kết nối và tải thông tin tờ Sheet
+        const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
         await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0]; // Chọn trang tính đầu tiên
+        const sheet = doc.sheetsByIndex[0];
 
-        // 3. Thực hiện ghi một dòng mới
         await sheet.addRow({
             'Thời gian': new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-            'Nội dung': 'Xin chào Đạt! Render đã kết nối thành công với Google Sheet rồi nhé.'
+            'Nội dung': `Ghi từ hệ thống đa nhiệm vào file: ${fileKey}`
         });
 
-        console.log("--- Đã ghi dữ liệu thành công vào lúc: " + new Date().toLocaleString() + " ---");
-        return "Thành công rực rỡ!";
+        return `Thành công! Đã ghi vào file: "${doc.title}"`;
     } catch (error) {
-        console.error("Lỗi kết nối hoặc ghi dữ liệu:", error);
+        console.error(error);
         return "Thất bại! Lỗi: " + error.message;
     }
 }
 
-// Đường dẫn chính khi bạn nhấn vào link .onrender.com
-app.get('/', async (req, res) => {
-    const status = await writeToSheet();
+// ============================================================
+// BƯỚC 2: CÁC ĐƯỜNG DẪN ĐỂ BẠN ĐIỀU KHIỂN
+// ============================================================
+
+// Trang chủ hiện danh sách các link để bạn bấm cho tiện
+app.get('/', (req, res) => {
+    let html = `<h1>Bảng điều khiển của Đạt</h1><ul>`;
+    for (let key in DANH_SACH_SHEET) {
+        html += `<li><a href="/ghi/${key}">Ghi vào file: ${key}</a></li>`;
+    }
+    html += `</ul>`;
+    res.send(html);
+});
+
+// Đường dẫn dùng chung: /ghi/kho hoặc /ghi/chinh hoặc /ghi/donhang
+app.get('/ghi/:tenfile', async (req, res) => {
+    const tenFileYeuCau = req.params.tenfile;
+    const ketQua = await ghiDuLieu(tenFileYeuCau);
+    
     res.send(`
         <div style="text-align: center; padding: 50px; font-family: sans-serif;">
-            <h1 style="color: #2ecc71;">Kết quả: ${status}</h1>
-            <p>Bây giờ Đạt hãy mở file Google Sheet của bạn ra để kiểm tra nhé!</p>
-            <a href="https://docs.google.com/spreadsheets/d/${process.env.GOOGLE_SHEET_ID}" target="_blank" style="padding: 10px 20px; background: #3498db; color: white; text-decoration: none; border-radius: 5px;">Mở Google Sheet của tôi</a>
+            <h2 style="color: #2ecc71;">${ketQua}</h2>
+            <br>
+            <a href="/" style="color: #3498db;"> Quay lại bảng điều khiển</a>
         </div>
     `);
 });
 
 app.listen(PORT, () => {
-    console.log(`Bot đang lắng nghe tại cổng ${PORT}`);
+    console.log(`Hệ thống đang chạy tại cổng ${PORT}`);
 });
