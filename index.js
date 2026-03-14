@@ -1,70 +1,53 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
-const http = require('http');
+const express = require('express');
+const { GoogleSpreadsheet } = require('google-spreadsheet');
+const { JWT } = require('google-auth-library');
 
-// Cấu hình các thông số
+const app = express();
 const PORT = process.env.PORT || 3000;
-const URL_SOURCE = 'https://vnexpress.net/chu-de/gia-xang-dau-544';
 
-async function updateGasPrices() {
-    console.log("\n--- [START] Bắt đầu quy trình Closed-Loop: Thu thập dữ liệu ---");
-    
+// Hàm chính để ghi dữ liệu vào Google Sheet
+async function writeToSheet() {
     try {
-        // 1. THU THẬP (Observe)
-        const response = await axios.get(URL_SOURCE, {
-            headers: { 'User-Agent': 'Mozilla/5.0' } // Giả lập trình duyệt để tránh bị chặn
-        });
-        const $ = cheerio.load(response.data);
-
-        // 2. PHÂN TÍCH (Analyze)
-        // Lưu ý: Chúng ta lấy giá xăng từ tiêu đề hoặc nội dung bài viết mới nhất trên VnExpress
-        let gasData = [];
-        
-        // Tìm các bài báo có chứa thông tin giá
-        $('.title-news a').each((i, el) => {
-            const title = $(el).text();
-            if (title.includes('giá xăng') || title.includes('Giá xăng')) {
-                // Ví dụ: "Giá xăng RON 95 giảm về 23.500 đồng"
-                gasData.push({ Tin_Moi_Nhat: title });
-            }
+        // 1. Lấy "chìa khóa" từ ngăn kéo Environment của Render
+        const serviceAccountAuth = new JWT({
+            email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+            // Quan trọng: Chuyển đổi các ký tự \n trong chìa khóa để Google hiểu được
+            key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
         });
 
-        // Nếu không cào được web (do cấu trúc thay đổi), trả về dữ liệu mẫu để hệ thống không dừng lại
-        if (gasData.length === 0) {
-            gasData.push({ 
-                Loai: "Dữ liệu mẫu (Hệ thống đang kiểm tra)", 
-                Gia: "Đang cập nhật..." 
-            });
-        }
+        const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
 
-        // 3. THỰC THI (Execute / Output)
-        console.log("Cập nhật thành công lúc:", new Date().toLocaleString());
-        console.table(gasData);
+        // 2. Kết nối và tải thông tin tờ Sheet
+        await doc.loadInfo();
+        const sheet = doc.sheetsByIndex[0]; // Chọn trang tính đầu tiên
 
-        // ĐÂY LÀ NƠI BẠN CÓ THỂ GỬI DỮ LIỆU ĐI:
-        // - Gửi qua Socket cho Blender
-        // - Ghi vào file Excel (Closed-loop)
-        // - Gửi tin nhắn Telegram thông báo
+        // 3. Thực hiện ghi một dòng mới
+        await sheet.addRow({
+            'Thời gian': new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+            'Nội dung': 'Xin chào Đạt! Render đã kết nối thành công với Google Sheet rồi nhé.'
+        });
 
+        console.log("--- Đã ghi dữ liệu thành công vào lúc: " + new Date().toLocaleString() + " ---");
+        return "Thành công rực rỡ!";
     } catch (error) {
-        console.error("Lỗi khi kết nối nguồn dữ liệu:", error.message);
+        console.error("Lỗi kết nối hoặc ghi dữ liệu:", error);
+        return "Thất bại! Lỗi: " + error.message;
     }
 }
 
-// Thiết lập Server để Render không tắt ứng dụng
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.write('<h1>Bot Cập Nhật Giá Xăng Đang Chạy...</h1>');
-    res.write(`<p>Cập nhật lần cuối: ${new Date().toLocaleString()}</p>`);
-    res.end();
+// Đường dẫn chính khi bạn nhấn vào link .onrender.com
+app.get('/', async (req, res) => {
+    const status = await writeToSheet();
+    res.send(`
+        <div style="text-align: center; padding: 50px; font-family: sans-serif;">
+            <h1 style="color: #2ecc71;">Kết quả: ${status}</h1>
+            <p>Bây giờ Đạt hãy mở file Google Sheet của bạn ra để kiểm tra nhé!</p>
+            <a href="https://docs.google.com/spreadsheets/d/${process.env.GOOGLE_SHEET_ID}" target="_blank" style="padding: 10px 20px; background: #3498db; color: white; text-decoration: none; border-radius: 5px;">Mở Google Sheet của tôi</a>
+        </div>
+    `);
 });
 
-server.listen(PORT, () => {
-    console.log(`Server đang lắng nghe tại Port: ${PORT}`);
-    
-    // Chạy lần đầu tiên ngay khi khởi động
-    updateGasPrices();
-
-    // Tự động chạy lại sau mỗi 30 phút (1.800.000 ms)
-    setInterval(updateGasPrices, 1800000);
+app.listen(PORT, () => {
+    console.log(`Bot đang lắng nghe tại cổng ${PORT}`);
 });
