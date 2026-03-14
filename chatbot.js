@@ -13,8 +13,7 @@ const auth = new JWT({
     key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
-const SHEET_ID = '1-2CB8yW-xgVeY7VMKvinfH1CwMKGiWZJkNC2ENqnl0g';
-
+const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1-2CB8yW-xgVeY7VMKvinfH1CwMKGiWZJkNC2ENqnl0g';
 // 2. Giao diện Chat (Giữ nguyên giao diện xanh đẹp mắt)
 app.get('/', (req, res) => {
     res.send(`
