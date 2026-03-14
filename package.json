@@ -5,9 +5,10 @@
   "scripts": {
     "start": "node chatbot.js" 
   },
-  "dependencies": {
-    "express": "^4.18.2",
-    "google-spreadsheet": "^4.1.1",
-    "google-auth-library": "^9.0.0"
-  }
+"dependencies": {
+  "express": "^4.18.2",
+  "google-spreadsheet": "^4.1.1",
+  "google-auth-library": "^9.0.0",
+  "axios": "^1.6.0"
+}
 }
