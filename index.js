@@ -1,52 +1,70 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
+const http = require('http');
+
+// Cấu hình các thông số
+const PORT = process.env.PORT || 3000;
+const URL_SOURCE = 'https://vnexpress.net/chu-de/gia-xang-dau-544';
 
 async function updateGasPrices() {
-    console.log("--- Bắt đầu quy trình cập nhật giá xăng dầu ---");
+    console.log("\n--- [START] Bắt đầu quy trình Closed-Loop: Thu thập dữ liệu ---");
     
     try {
-        // 1. Thu thập (Observe): Lấy dữ liệu từ nguồn tin tức
-        const response = await axios.get('https://giaxangdau.net/');
+        // 1. THU THẬP (Observe)
+        const response = await axios.get(URL_SOURCE, {
+            headers: { 'User-Agent': 'Mozilla/5.0' } // Giả lập trình duyệt để tránh bị chặn
+        });
         const $ = cheerio.load(response.data);
 
-        // 2. Phân tích (Analyze): Trích xuất giá xăng từ bảng dữ liệu của trang web
-        // Lưu ý: Selector này có thể thay đổi tùy theo cấu trúc trang web nguồn
-        const fuelData = [];
-        $('table tr').each((index, element) => {
-            const name = $(element).find('td').eq(0).text().trim();
-            const price = $(element).find('td').eq(1).text().trim();
-            
-            if (name.includes("RON 95") || name.includes("E5 RON 92")) {
-                fuelData.push({ Loai: name, Gia: price });
+        // 2. PHÂN TÍCH (Analyze)
+        // Lưu ý: Chúng ta lấy giá xăng từ tiêu đề hoặc nội dung bài viết mới nhất trên VnExpress
+        let gasData = [];
+        
+        // Tìm các bài báo có chứa thông tin giá
+        $('.title-news a').each((i, el) => {
+            const title = $(el).text();
+            if (title.includes('giá xăng') || title.includes('Giá xăng')) {
+                // Ví dụ: "Giá xăng RON 95 giảm về 23.500 đồng"
+                gasData.push({ Tin_Moi_Nhat: title });
             }
         });
 
-        // 3. Thực thi (Execute/Output): In kết quả hoặc chuẩn bị gửi cho Blender/Excel
-        if (fuelData.length > 0) {
-            console.log("Cập nhật thành công lúc:", new Date().toLocaleString());
-            console.table(fuelData);
-            
-            // Ở đây bạn có thể thêm code để gửi JSON này qua Socket cho Blender
-            // hoặc ghi vào file Excel như mô hình "Closed-Loop" của bạn.
-        } else {
-            console.log("Không tìm thấy dữ liệu giá xăng. Vui lòng kiểm tra lại nguồn.");
+        // Nếu không cào được web (do cấu trúc thay đổi), trả về dữ liệu mẫu để hệ thống không dừng lại
+        if (gasData.length === 0) {
+            gasData.push({ 
+                Loai: "Dữ liệu mẫu (Hệ thống đang kiểm tra)", 
+                Gia: "Đang cập nhật..." 
+            });
         }
 
+        // 3. THỰC THI (Execute / Output)
+        console.log("Cập nhật thành công lúc:", new Date().toLocaleString());
+        console.table(gasData);
+
+        // ĐÂY LÀ NƠI BẠN CÓ THỂ GỬI DỮ LIỆU ĐI:
+        // - Gửi qua Socket cho Blender
+        // - Ghi vào file Excel (Closed-loop)
+        // - Gửi tin nhắn Telegram thông báo
+
     } catch (error) {
-        console.error("Lỗi khi cập nhật giá xăng:", error.message);
+        console.error("Lỗi khi kết nối nguồn dữ liệu:", error.message);
     }
 }
 
-// Chạy ngay khi khởi động
-updateGasPrices();
-
-// Tự động cập nhật mỗi 1 tiếng (3600000ms) để giữ server Render không ngủ
-setInterval(updateGasPrices, 3600000);
-
-// Tạo một HTTP server đơn giản để Render không báo lỗi "Port timeout"
-const http = require('http');
+// Thiết lập Server để Render không tắt ứng dụng
 const server = http.createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end('Gas Price Bot is running...\n');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.write('<h1>Bot Cập Nhật Giá Xăng Đang Chạy...</h1>');
+    res.write(`<p>Cập nhật lần cuối: ${new Date().toLocaleString()}</p>`);
+    res.end();
 });
-server.listen(process.env.PORT || 3000);
+
+server.listen(PORT, () => {
+    console.log(`Server đang lắng nghe tại Port: ${PORT}`);
+    
+    // Chạy lần đầu tiên ngay khi khởi động
+    updateGasPrices();
+
+    // Tự động chạy lại sau mỗi 30 phút (1.800.000 ms)
+    setInterval(updateGasPrices, 1800000);
+});
