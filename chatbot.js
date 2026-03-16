@@ -19,14 +19,6 @@ const auth = new JWT({
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
-// --- PHẦN 2: HÀM ĐỌC DỮ LIỆU (Anh giữ nguyên phần getAppData bên dưới của anh) ---
-
-// --- PHẦN 1: CẤU HÌNH XÁC THỰC GOOGLE SHEETS ---
-const auth = new JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: process.env.GOOGLE_PRIVATE_KEY ? process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n') : null,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
 
 // --- PHẦN 2: HÀM ĐỌC DỮ LIỆU TỪ 3 FILE EXCEL ---
 async function getAppData() {
