@@ -8,7 +8,6 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public')); 
 
-// --- BỘ NHỚ LỊCH SỬ CHAT ---
 let chatHistory = [];
 
 const auth = new JWT({
@@ -28,14 +27,14 @@ async function getAppData() {
         await docProd.loadInfo();
         const prodRows = await docProd.sheetsByIndex[0].getRows();
         
-        // Đọc dữ liệu từ file Danh_Sach_SP (có cột Ảnh)
+        // Đọc dữ liệu ảnh từ cột E (tên là "Ảnh" trong file của anh)
         const khoHang = prodRows.map(r => 
-            `- ${r.get('Tên')} | Giá: ${r.get('Giá')} | Size: ${r.get('Size')} | Mô tả: ${r.get('Mô tả')} | LinkAnh: ${r.get('Ảnh') || ''}`
+            `- SP: ${r.get('Tên')} | Giá: ${r.get('Giá')} | Size: ${r.get('Size')} | Mô tả: ${r.get('Mô tả')} | MaAnh: ${r.get('Ảnh') || ''}`
         ).join('\n');
 
         return { shopProfile, khoHang };
     } catch (err) {
-        return { shopProfile: "Lỗi kết nối", khoHang: "Lỗi kết nối" };
+        return { shopProfile: "Lỗi", khoHang: "Lỗi" };
     }
 }
 
@@ -52,15 +51,18 @@ app.post('/chat', async (req, res) => {
             messages: [
                 {
                     role: "system",
-                    content: `Bạn là trợ lý ảo của shop "Hương Kid - Thời trang bé trai".
-                    DỮ LIỆU: ${shopProfile}. KHO: ${khoHang}
+                    content: `Bạn là trợ lý ảo của shop "Hương Kid". 
+                    KHO HÀNG CỦA BẠN:
+                    ${khoHang}
 
-                    QUY TRÌNH CHỐT ĐƠN 2 BƯỚC:
-                    Bước 1: Khi đủ Tên, SĐT, Sản phẩm(Size), Địa chỉ -> Hiện BẢN TÓM TẮT ĐƠN HÀNG (kèm tiền hàng + ship) và hỏi: "Xác nhận đúng chưa để em cho đi đơn?". (Chưa ghi mã CHOT_DON).
-                    Bước 2: Khi khách nói "Ok/Đúng/Ship đi" -> Ghi mã cuối câu: [CHOT_DON: Tên | Sản phẩm (Size) | SĐT | Địa chỉ]
+                    NHIỆM VỤ QUAN TRỌNG:
+                    1. Khi khách hỏi về sản phẩm hoặc xem mẫu, bạn PHẢI gửi ảnh theo đúng cú pháp này: ![img](Dán_Toàn_Bộ_Nội_Dung_MaAnh_Ở_Đây).
+                    2. TUYỆT ĐỐI không được bỏ qua mã ảnh. Nếu cột MaAnh có dữ liệu, bạn phải lôi ra hết.
+                    3. Chỉ tư vấn những gì có trong kho hàng bên trên.
 
-                    QUY TẮC HÌNH ẢNH:
-                    Khi giới thiệu sản phẩm, bắt buộc gửi kèm ảnh theo mẫu: ![img](Nội_dung_LinkAnh_trong_kho)`
+                    QUY TRÌNH CHỐT ĐƠN:
+                    - Đủ Tên, SĐT, Sản phẩm(Size), Địa chỉ -> Hiện bản tóm tắt xác nhận.
+                    - Khách OK -> Ghi mã cuối câu: [CHOT_DON: Tên | Sản phẩm (Size) | SĐT | Địa chỉ]`
                 },
                 ...chatHistory
             ]
@@ -84,13 +86,13 @@ app.post('/chat', async (req, res) => {
                     'Số điện thoại': parts[2],
                     'Ghi chú (nếu có)': parts[3]
                 });
-                aiReply = aiReply.replace(/\[CHOT_DON:.*?\]/g, "✅ ĐƠN ĐÃ LÊN HỆ THỐNG. CHỊ HƯƠNG SẼ GỌI NGAY!");
+                aiReply = aiReply.replace(/\[CHOT_DON:.*?\]/g, "✅ Đã ghi đơn thành công cho chị ạ!");
                 chatHistory = []; 
             } catch (err) { console.error(err); }
         }
         res.json({ reply: aiReply });
-    } catch (error) { res.status(500).json({ reply: "Lỗi hệ thống rồi anh Đạt ơi!" }); }
+    } catch (error) { res.status(500).json({ reply: "Lỗi rồi anh Đạt ơi!" }); }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server chạy cổng ${PORT}`));
