@@ -6,7 +6,87 @@ const { JWT } = require('google-auth-library');
 
 const app = express();
 app.use(express.json());
-app.use(express.static('public')); // Để chạy giao diện web
+
+// --- 1. GIAO DIỆN CHAT CHUYÊN NGHIỆP (Thay cho app.use static) ---
+app.get('/', (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="vi">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Hương Kid Support</title>
+            <style>
+                body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+                #chat-container { width: 100%; max-width: 450px; height: 90vh; background: white; box-shadow: 0 8px 24px rgba(0,0,0,0.1); border-radius: 15px; display: flex; flex-direction: column; overflow: hidden; }
+                #header { background: #0084ff; color: white; padding: 15px; text-align: center; font-weight: bold; font-size: 1.1em; }
+                #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; }
+                .msg { max-width: 85%; padding: 10px 15px; border-radius: 18px; font-size: 14.5px; line-height: 1.5; word-wrap: break-word; }
+                .user { align-self: flex-end; background: #0084ff; color: white; border-bottom-right-radius: 4px; }
+                .bot { align-self: flex-start; background: #e4e6eb; color: #050505; border-bottom-left-radius: 4px; white-space: pre-wrap; }
+                #input-area { padding: 15px; border-top: 1px solid #eee; display: flex; background: white; }
+                input { flex: 1; border: 1px solid #ddd; padding: 12px 18px; border-radius: 25px; outline: none; transition: border 0.3s; }
+                input:focus { border-color: #0084ff; }
+                button { background: #0084ff; color: white; border: none; width: 42px; height: 42px; border-radius: 50%; margin-left: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; }
+                button:hover { transform: scale(1.05); }
+            </style>
+        </head>
+        <body>
+            <div id="chat-container">
+                <div id="header">Hương Kid - Thời trang bé trai</div>
+                <div id="messages"></div>
+                <div id="input-area">
+                    <input type="text" id="userInput" placeholder="Nhắn tin cho shop..." onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button onclick="sendMessage()">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+                    </button>
+                </div>
+            </div>
+            <script>
+                const messageContainer = document.getElementById('messages');
+                
+                // Tin nhắn chào mừng mặc định
+                window.onload = () => {
+                    addMessage("Dạ shop Hương Kid chào chị ạ! Em có thể giúp gì cho bé nhà mình không chị?", 'bot');
+                };
+
+                function addMessage(text, sender) {
+                    const div = document.createElement('div');
+                    div.className = 'msg ' + sender;
+                    div.innerHTML = text;
+                    messageContainer.appendChild(div);
+                    messageContainer.scrollTop = messageContainer.scrollHeight;
+                }
+
+                async function sendMessage() {
+                    const input = document.getElementById('userInput');
+                    const text = input.value.trim();
+                    if (!text) return;
+
+                    addMessage(text, 'user');
+                    input.value = '';
+
+                    try {
+                        const res = await fetch('/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: text })
+                        });
+                        const data = await res.json();
+                        // Chuyển đổi xuống dòng để hiển thị đẹp
+                        const formattedResponse = data.reply.replace(/\\n/g, '<br>');
+                        addMessage(formattedResponse, 'bot');
+                    } catch (e) {
+                        addMessage("Dạ, hệ thống đang bận chút, chị nhắn lại sau nha!", 'bot');
+                    }
+                }
+            </script>
+        </body>
+        </html>
+    `);
+});
+
+// --- 2. CẤU HÌNH XÁC THỰC VÀ CÁC PHẦN TIẾP THEO (Giữ nguyên phần dưới của anh) ---
 
 // --- PHẦN 1: CẤU HÌNH XÁC THỰC GOOGLE SHEETS ---
 const auth = new JWT({
