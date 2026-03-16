@@ -8,15 +8,14 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         
         body { 
-            font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, system-ui, sans-serif;
             background: #f0f2f5; 
             margin: 0; 
+            padding: 0;
             display: flex; 
             flex-direction: column; 
-            /* Full màn hình tuyệt đối */
-            height: 100vh; 
-            height: -webkit-fill-available; 
-            overflow: hidden;
+            height: 100vh; /* Cố định chiều cao toàn màn hình */
+            overflow: hidden; /* Không cho cả trang web cuộn */
         }
 
         #header { 
@@ -24,11 +23,12 @@
             color: white; 
             padding: 15px; 
             text-align: center; 
-            font-size: 22px; 
+            font-size: 20px; 
             font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            flex-shrink: 0; /* Không cho header bị co lại */
         }
 
+        /* Vùng tin nhắn: Chỉ vùng này được phép cuộn */
         #messages { 
             flex: 1; 
             overflow-y: auto; 
@@ -36,77 +36,76 @@
             display: flex; 
             flex-direction: column; 
             gap: 15px; 
-            background: white;
-            /* Cuộn mượt trên mobile */
+            background: #ffffff;
             -webkit-overflow-scrolling: touch; 
         }
 
         .msg { 
             max-width: 85%; 
-            padding: 12px 18px; 
+            padding: 12px 16px; 
             border-radius: 20px; 
-            font-size: 18px; /* Chữ to dễ đọc */
+            font-size: 17px; 
             line-height: 1.5; 
             word-wrap: break-word;
         }
 
         .user { align-self: flex-end; background: #0084ff; color: white; border-bottom-right-radius: 4px; }
-        .bot { align-self: flex-start; background: #e4e6eb; color: black; border-bottom-left-radius: 4px; }
+        .bot { align-self: flex-start; background: #e4e6eb; color: #050505; border-bottom-left-radius: 4px; }
 
         .chat-img { 
             width: 100%; 
-            max-width: 280px; 
+            max-width: 250px; 
             border-radius: 12px; 
             margin-top: 10px; 
             display: block; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
-        /* Khu vực nhập liệu to và không bị che */
+        /* Thanh nhập liệu: Cố định luôn nằm dưới cùng màn hình */
         #input-area { 
-            padding: 12px 15px; 
+            flex-shrink: 0; /* Giữ cố định kích thước */
+            padding: 10px 15px; 
             display: flex; 
             background: white; 
             border-top: 1px solid #ddd;
             align-items: center;
-            /* Tránh bị ẩn bởi tai thỏ/nút home trên iPhone */
-            padding-bottom: calc(12px + env(safe-area-inset-bottom)); 
+            /* Tối ưu cho tai thỏ/nút home của điện thoại mới */
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
         }
 
         input { 
             flex: 1; 
-            border: 1px solid #ccc; 
-            padding: 15px 20px; 
-            border-radius: 30px; 
-            font-size: 17px; 
+            border: 1px solid #ddd; 
+            padding: 12px 18px; 
+            border-radius: 25px; 
+            font-size: 16px; 
             outline: none; 
             background: #f0f2f5;
         }
 
-        /* Nút gửi lớn, dễ bấm cho ngón tay */
         #sendBtn { 
             background: #0084ff; 
             color: white; 
             border: none; 
-            width: 55px; 
-            height: 55px; 
+            width: 50px; 
+            height: 50px; 
             border-radius: 50%; 
-            margin-left: 12px; 
+            margin-left: 10px; 
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            box-shadow: 0 2px 8px rgba(0,132,255,0.3);
         }
 
-        #sendBtn svg { width: 26px; height: 26px; fill: white; }
+        #sendBtn svg { width: 24px; height: 24px; fill: white; }
         #sendBtn:active { transform: scale(0.9); }
 
     </style>
 </head>
 <body>
     <div id="header">Hương Kid - Shop Bé Trai</div>
+    
     <div id="messages"></div>
     
     <div id="input-area">
@@ -125,12 +124,10 @@
             const div = document.createElement('div');
             div.className = 'msg ' + sender;
             
-            // Xử lý xuống dòng và hiển thị ảnh
             let content = text.replace(/\n/g, '<br>');
             const imgRegex = /\[IMG\](.*?)\[\/IMG\]/g;
             content = content.replace(imgRegex, (match, url) => {
                 let cleanUrl = url.trim();
-                // Tự sửa link nếu dán nhầm link web ImgBB
                 if (cleanUrl.includes("ibb.co") && !cleanUrl.includes("i.ibb.co")) {
                     cleanUrl = cleanUrl.replace("ibb.co/", "i.ibb.co/") + ".jpg";
                 }
@@ -140,11 +137,8 @@
             div.innerHTML = content;
             messageContainer.appendChild(div);
             
-            // Luôn cuộn xuống tin mới nhất
-            messageContainer.scrollTo({
-                top: messageContainer.scrollHeight,
-                behavior: 'smooth'
-            });
+            // Tự động cuộn vùng tin nhắn xuống cuối mỗi khi có tin mới
+            messageContainer.scrollTop = messageContainer.scrollHeight;
         }
 
         async function sendMessage() {
@@ -153,9 +147,6 @@
 
             addMsg(text, 'user');
             input.value = '';
-            
-            // Tự động thu bàn phím để nhìn thấy ảnh dễ hơn
-            input.blur();
 
             try {
                 const res = await fetch('/chat', {
@@ -166,14 +157,13 @@
                 const data = await res.json();
                 addMsg(data.reply, 'bot');
             } catch (e) {
-                addMsg("Dạ shop đang bận tí, chị nhắn lại sau vài giây nha!", 'bot');
+                addMsg("Hệ thống bận, chị nhắn lại sau nha!", 'bot');
             }
         }
 
         btn.onclick = sendMessage;
         input.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
 
-        // Lời chào đầu tiên
         window.onload = () => {
             addMsg("Dạ shop Hương Kid chào chị ạ! Chị muốn tìm đồ cho bé nặng bao nhiêu kg ạ?", 'bot');
         };
