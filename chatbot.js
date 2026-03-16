@@ -18,21 +18,32 @@ const auth = new JWT({
 
 async function getAppData() {
     try {
+        const docInfo = new GoogleSpreadsheet(process.env.ID_FILE_INFO, auth);
+        await docInfo.loadInfo();
+        const infoRows = await docInfo.sheetsByIndex[0].getRows();
+        const shopProfile = infoRows.map(r => `${r.get('Hạng mục')}: ${r.get('Nội dung')}`).join('\n');
+
         const docProd = new GoogleSpreadsheet(process.env.ID_FILE_PRODUCT, auth);
         await docProd.loadInfo();
         const prodRows = await docProd.sheetsByIndex[0].getRows();
+        
         const khoHang = prodRows.map(r => 
             `- SP: ${r.get('Tên')} | Giá: ${r.get('Giá')} | Size: ${r.get('Size')} | LinkAnh: ${r.get('Ảnh') || ''}`
         ).join('\n');
-        return { khoHang };
-    } catch (err) { return { khoHang: "" }; }
+
+        return { shopProfile, khoHang };
+    } catch (err) {
+        console.error("Lỗi đọc Excel:", err);
+        return { shopProfile: "", khoHang: "" };
+    }
 }
 
 app.post('/chat', async (req, res) => {
     const { message } = req.body;
-    const { khoHang } = await getAppData();
+    const { shopProfile, khoHang } = await getAppData();
+
     chatHistory.push({ role: "user", content: message });
-    if (chatHistory.length > 10) chatHistory.shift();
+    if (chatHistory.length > 12) chatHistory.shift();
 
     try {
         const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
@@ -40,18 +51,55 @@ app.post('/chat', async (req, res) => {
             messages: [
                 {
                     role: "system",
-                    content: `Bạn là trợ lý shop Hương Kid. Kho: ${khoHang}. 
-                    BẮT BUỘC: Khi nhắc tên SP, phải kèm mã ảnh: [IMG]Link_Ảnh[/IMG].
-                    Ví dụ: "Dạ đây là Áo Dinosaur [IMG]https://i.ibb.co/abc.jpg[/IMG] ạ."`
+                    content: `Bạn là trợ lý ảo shop "Hương Kid". 
+                    THÔNG TIN SHOP: ${shopProfile}
+                    KHO HÀNG: ${khoHang}
+
+                    QUY ĐỊNH ẢNH: Phải kèm mã [IMG]Link_Ảnh[/IMG] khi nói về sản phẩm.
+
+                    QUY TRÌNH CHỐT ĐƠN:
+                    1. Khi khách đủ: Tên, SĐT, Sản phẩm(Size), Địa chỉ -> Bạn tóm tắt đơn và hỏi khách xác nhận.
+                    2. Khi khách OK/Đúng rồi -> Bạn ghi mã này cuối câu trả lời: [CHOT_DON: Tên | Sản phẩm (Size) | SĐT | Địa chỉ]`
                 },
                 ...chatHistory
             ]
         }, { headers: { "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}` } });
 
         let aiReply = response.data.choices[0].message.content;
+
+        // --- LOGIC GHI ĐƠN VÀO EXCEL ---
+        if (aiReply.includes("[CHOT_DON:")) {
+            try {
+                const docOrder = new GoogleSpreadsheet(process.env.ID_FILE_ORDER, auth);
+                await docOrder.loadInfo();
+                const orderSheet = docOrder.sheetsByIndex[0];
+
+                const orderRaw = aiReply.split("[CHOT_DON:")[1].split("]")[0];
+                const parts = orderRaw.split("|").map(p => p.trim());
+
+                await orderSheet.addRow({
+                    'Thời gian': new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+                    'Tên khách': parts[0],
+                    'Sản phẩm': parts[1],
+                    'Số điện thoại': parts[2],
+                    'Ghi chú (nếu có)': parts[3] // Đây là nơi lưu địa chỉ
+                });
+
+                // Xóa mã code bí mật trước khi gửi cho khách xem
+                aiReply = aiReply.replace(/\[CHOT_DON:.*?\]/g, "✅ Đã ghi nhận đơn hàng thành công cho chị rồi ạ!");
+                chatHistory = []; // Chốt xong thì làm sạch lịch sử chat
+            } catch (err) {
+                console.error("Lỗi ghi đơn:", err);
+            }
+        }
+
         chatHistory.push({ role: "assistant", content: aiReply });
         res.json({ reply: aiReply });
-    } catch (error) { res.status(500).json({ reply: "Lỗi rồi anh Đạt ơi!" }); }
+
+    } catch (error) {
+        res.status(500).json({ reply: "Dạ hệ thống bận tí, chị nhắn lại sau nha!" });
+    }
 });
 
-app.listen(process.env.PORT || 3000);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Chatbot đang chạy tại cổng ${PORT}`));
