@@ -4,8 +4,7 @@ const axios = require('axios');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 
-const app = express();
-app.use(express.json());
+
 
 // --- 1. GIAO DIỆN CHAT CHUYÊN NGHIỆP (Thay cho app.use static) ---
 require('dotenv').config();
