@@ -15,6 +15,7 @@
         #header { 
             background: #0084ff; color: white; padding: 15px; 
             text-align: center; font-size: 20px; font-weight: bold; flex-shrink: 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         #messages { 
             flex: 1; overflow-y: auto; padding: 15px; 
@@ -53,7 +54,7 @@
     <div id="header">Hương Kid - Shop Bé Trai</div>
     <div id="messages"></div>
     <div id="input-area">
-        <input type="text" id="userInput" placeholder="Hỏi shop ngay..." autocomplete="off">
+        <input type="text" id="userInput" placeholder="Nhập tin nhắn..." autocomplete="off">
         <button id="sendBtn">
             <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
         </button>
@@ -64,11 +65,10 @@
         const input = document.getElementById('userInput');
         const btn = document.getElementById('sendBtn');
 
-        // Lấy hoặc tạo ID người dùng để nhớ tin nhắn
-        let userId = localStorage.getItem('hương_kid_userId');
+        let userId = localStorage.getItem('hk_userId');
         if (!userId) {
-            userId = 'khach_' + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem('hương_kid_userId', userId);
+            userId = 'kh_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('hk_userId', userId);
         }
 
         function addMsg(text, sender, save = true) {
@@ -76,7 +76,6 @@
             div.className = 'msg ' + sender;
             let content = text.replace(/\n/g, '<br>');
             
-            // Bộ lọc hiển thị ảnh
             content = content.replace(/\[IMG\](.*?)\[\/IMG\]/g, (match, url) => {
                 let u = url.trim();
                 if (u.includes("ibb.co") && !u.includes("i.ibb.co")) u = u.replace("ibb.co/", "i.ibb.co/") + ".jpg";
@@ -87,8 +86,7 @@
             messageContainer.appendChild(div);
             messageContainer.scrollTop = messageContainer.scrollHeight;
             
-            // Lưu vào máy khách để thoát ra vào lại vẫn thấy
-            if (save) localStorage.setItem('chat_log_' + userId, messageContainer.innerHTML);
+            if (save) localStorage.setItem('hk_chat_log_' + userId, messageContainer.innerHTML);
         }
 
         async function sendMessage() {
@@ -110,14 +108,13 @@
         btn.onclick = sendMessage;
         input.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
 
-        // Khi load trang: Hiển thị lại chat cũ hoặc lời chào
         window.onload = () => {
-            const oldChat = localStorage.getItem('chat_log_' + userId);
+            const oldChat = localStorage.getItem('hk_chat_log_' + userId);
             if (oldChat) {
                 messageContainer.innerHTML = oldChat;
                 messageContainer.scrollTop = messageContainer.scrollHeight;
             } else {
-                addMsg("Dạ shop Hương Kid chào chị ạ! Chị muốn tìm đồ cho bé mấy kg ạ?", 'bot', false);
+                addMsg("Dạ shop Hương Kid chào chị ạ! Chị muốn tìm đồ cho bé nặng bao nhiêu kg ạ?", 'bot', false);
             }
         };
     </script>
