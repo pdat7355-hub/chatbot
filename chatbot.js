@@ -4,26 +4,22 @@ const axios = require('axios');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 
-
-
-// --- 1. GIAO DIỆN CHAT CHUYÊN NGHIỆP (Thay cho app.use static) ---
-require('dotenv').config();
-const express = require('express');
-// ... các require khác giữ nguyên
-
 const app = express();
+
+// --- CẤU HÌNH MIDDLEWARE ---
 app.use(express.json());
 
-// Dòng này giúp Render tự tìm file index.html trong thư mục public
+// Dòng này cực kỳ quan trọng: Nó sẽ tự tìm file index.html trong thư mục public để làm trang chủ
 app.use(express.static('public')); 
 
-// Không cần app.get('/') nữa vì express.static đã lo việc đó rồi
-
-app.post('/chat', async (req, res) => {
-    // ... code xử lý chat giữ nguyên
+// --- PHẦN 1: CẤU HÌNH XÁC THỰC GOOGLE SHEETS ---
+const auth = new JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: process.env.GOOGLE_PRIVATE_KEY ? process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n') : null,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
-// --- 2. CẤU HÌNH XÁC THỰC VÀ CÁC PHẦN TIẾP THEO (Giữ nguyên phần dưới của anh) ---
+// --- PHẦN 2: HÀM ĐỌC DỮ LIỆU (Anh giữ nguyên phần getAppData bên dưới của anh) ---
 
 // --- PHẦN 1: CẤU HÌNH XÁC THỰC GOOGLE SHEETS ---
 const auth = new JWT({
