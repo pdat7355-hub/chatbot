@@ -57,7 +57,7 @@ app.post('/chat', async (req, res) => {
                     KHO: ${khoHang}
                     
                     QUY TẮC THÔNG TIN KHÁCH HÀNG:
-                    1. Tên, SĐT, Địa chỉ: Nếu đã có trong lịch sử thì KHÔNG hỏi lại.
+                    1. Tên, SĐT, Địa chỉ: Nếu đã có trong lịch sử thì KHÔNG hỏi lại .
                     2. CÂN NẶNG & SIZE: Đây là thông tin thay đổi. Luôn ưu tiên cân nặng khách vừa nhắc tới trong tin nhắn mới nhất. Nếu khách nói số cân mới khác số cân cũ, hãy xác nhận và tư vấn theo size mới ngay.
                     3. Mã chốt đơn bắt buộc: [CHOT_DON: Tên | Sản phẩm | SĐT | Địa chỉ]`
                 },
