@@ -6,10 +6,7 @@ const { JWT } = require('google-auth-library');
 
 const app = express();
 app.use(express.json());
-
-// Biến môi trường cho Facebook (Cần thêm trên Render)
-const FB_PAGE_ACCESS_TOKEN = process.env.FB_PAGE_ACCESS_TOKEN;
-const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
+app.use(express.static('public')); 
 
 let allUsersHistory = {}; 
 
@@ -19,7 +16,6 @@ const auth = new JWT({
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
-// Hàm lấy dữ liệu từ Google Sheets (Giữ nguyên của bạn)
 async function getAppData() {
     try {
         const docInfo = new GoogleSpreadsheet(process.env.ID_FILE_INFO, auth);
@@ -38,46 +34,13 @@ async function getAppData() {
     } catch (err) { return { shopProfile: "", khoHang: "" }; }
 }
 
-// 1. Webhook GET: Để Facebook xác thực server của bạn
-app.get('/webhook', (req, res) => {
-    let mode = req.query['hub.mode'];
-    let token = req.query['hub.verify_token'];
-    let challenge = req.query['hub.challenge'];
-
-    if (mode && token) {
-        if (mode === 'subscribe' && token === FB_VERIFY_TOKEN) {
-            console.log('WEBHOOK_VERIFIED');
-            res.status(200).send(challenge);
-        } else {
-            res.sendStatus(403);
-        }
-    }
-});
-
-// 2. Webhook POST: Nơi Facebook gửi tin nhắn của khách đến
-app.post('/webhook', async (req, res) => {
-    let body = req.body;
-
-    if (body.object === 'page') {
-        body.entry.forEach(async (entry) => {
-            let webhook_event = entry.messaging[0];
-            let sender_psid = webhook_event.sender.id; // ID của khách hàng
-
-            if (webhook_event.message && webhook_event.message.text) {
-                await handleChatLogic(sender_psid, webhook_event.message.text);
-            }
-        });
-        res.status(200).send('EVENT_RECEIVED');
-    } else {
-        res.sendStatus(404);
-    }
-});
-
-// 3. Hàm xử lý logic AI và Ghi đơn (Tách ra từ route cũ của bạn)
-async function handleChatLogic(userId, message) {
+app.post('/chat', async (req, res) => {
+    const { message, userId } = req.body; 
     const { shopProfile, khoHang } = await getAppData();
 
-    if (!allUsersHistory[userId]) allUsersHistory[userId] = [];
+    if (!allUsersHistory[userId]) {
+        allUsersHistory[userId] = [];
+    }
     let userHistory = allUsersHistory[userId];
 
     userHistory.push({ role: "user", content: message });
@@ -89,7 +52,14 @@ async function handleChatLogic(userId, message) {
             messages: [
                 {
                     role: "system",
-                    content: `Bạn là trợ lý ảo shop Hương Kid. THÔNG TIN SHOP: ${shopProfile}\nKHO: ${khoHang}\nQUY TẮC: ... (giữ nguyên quy tắc của bạn)`
+                    content: `Bạn là trợ lý ảo shop Hương Kid. 
+                    THÔNG TIN SHOP: ${shopProfile}
+                    KHO: ${khoHang}
+                    
+                    QUY TẮC THÔNG TIN KHÁCH HÀNG:
+                    1. Tên, SĐT, Địa chỉ: Nếu đã có trong lịch sử thì KHÔNG hỏi lại .
+                    2. CÂN NẶNG & SIZE: Đây là thông tin thay đổi. Luôn ưu tiên cân nặng khách vừa nhắc tới trong tin nhắn mới nhất. Nếu khách nói số cân mới khác số cân cũ, hãy xác nhận và tư vấn theo size mới ngay.
+                    3. Mã chốt đơn bắt buộc: [CHOT_DON: Tên | Sản phẩm | SĐT | Địa chỉ]`
                 },
                 ...userHistory
             ]
@@ -97,12 +67,12 @@ async function handleChatLogic(userId, message) {
 
         let aiReply = response.data.choices[0].message.content;
 
-        // Xử lý chốt đơn
         if (aiReply.includes("[CHOT_DON:")) {
             try {
                 const docOrder = new GoogleSpreadsheet(process.env.ID_FILE_ORDER, auth);
                 await docOrder.loadInfo();
                 const orderSheet = docOrder.sheetsByIndex[0];
+
                 const orderRaw = aiReply.split("[CHOT_DON:")[1].split("]")[0];
                 const parts = orderRaw.split("|").map(p => p.trim());
 
@@ -113,31 +83,20 @@ async function handleChatLogic(userId, message) {
                     'Số điện thoại': parts[2],
                     'Ghi chú (nếu có)': parts[3]
                 });
-                aiReply = aiReply.replace(/\[CHOT_DON:.*?\]/g, "✅ Shop đã chốt đơn thành công cho chị rồi ạ!");
+
+                const cleanReply = aiReply.replace(/\[CHOT_DON:.*?\]/g, "✅ Shop đã chốt đơn thành công cho chị rồi ạ! Chị muốn xem thêm mẫu nào nữa không ạ?");
+                userHistory.push({ role: "assistant", content: cleanReply });
+                return res.json({ reply: cleanReply });
             } catch (err) { console.error("Lỗi ghi đơn:", err); }
         }
 
-        // Gửi trả lời về Messenger
-        await sendToFacebook(userId, aiReply);
         userHistory.push({ role: "assistant", content: aiReply });
+        res.json({ reply: aiReply });
 
     } catch (error) {
-        console.error("Lỗi xử lý AI:", error);
-        await sendToFacebook(userId, "Dạ hệ thống bận tí ạ!");
+        res.status(500).json({ reply: "Dạ hệ thống bận tí ạ!" });
     }
-}
-
-// 4. Hàm gọi API của Facebook để gửi tin nhắn
-async function sendToFacebook(psid, text) {
-    try {
-        await axios.post(`https://graph.facebook.com/v21.0/me/messages?access_token=${FB_PAGE_ACCESS_TOKEN}`, {
-            recipient: { id: psid },
-            message: { text: text }
-        });
-    } catch (err) {
-        console.error("Lỗi Send API:", err.response.data);
-    }
-}
+});
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server Facebook Bot đang chạy tại cổng ${PORT}`));
+app.listen(PORT, () => console.log(`Chatbot Hương Kid đang chạy tại cổng ${PORT}`));
