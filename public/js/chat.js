@@ -81,13 +81,47 @@ window.sendMsg = async function(isSilent = false) {
         // HIỂN THỊ
         let formattedReply = reply.replace(/\n/g, '<br>');
         box.innerHTML += `<div class="msg bot">${formattedReply}</div>`;
-        box.scrollTop = box.scrollHeight;
+        
+        // SỬA LỖI CUỘN: Gọi hàm cuộn thông minh
+        scrollToBottom(box);
 
     } catch (e) {
         console.error("Lỗi kết nối:", e);
         if (typingId) document.getElementById(typingId)?.remove();
     }
 };
+// --- HÀM CUỘN THÔNG MINH (Bắt được cả khi có ảnh) ---
+function scrollToBottom(box) {
+    if (!box) box = document.getElementById('chat-box');
+    
+    // Cuộn lần 1: Cho phần văn bản
+    box.scrollTop = box.scrollHeight;
+
+    // Cuộn lần 2: Đợi ảnh load xong (nếu có) rồi cuộn lại cho chắc
+    const images = box.querySelectorAll('img');
+    images.forEach(img => {
+        if (!img.complete) {
+            img.onload = () => { box.scrollTop = box.scrollHeight; };
+        }
+    });
+}
+
+
+// --- SỬA LỖI ENTER (Gắn trực tiếp vào ô input) ---
+// Đợi trang load xong rồi gán sự kiện
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('user-input');
+    if (input) {
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Chặn xuống dòng
+                window.sendMsg(false);
+            }
+        });
+    }
+});
+
+
 
 window.autoPick = function(val) {
     const input = document.getElementById('user-input');
