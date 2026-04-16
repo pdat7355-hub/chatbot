@@ -200,5 +200,7 @@ app.post('/chat', async (req, res) => {
     }
 });
 
-const PORT = 3000;
-app.listen(PORT, () => console.log(`✅ Server chạy tại: http://localhost:${PORT}`));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Hương Kid Bot đang chạy tại cổng: ${PORT}`);
+});
