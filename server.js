@@ -65,6 +65,7 @@ app.post('/chat', async (req, res) => {
         const text = (req.body.message || "").toLowerCase().trim();
         const dimConfig = await googleSheets.getDimensions();
         
+
         // 1. Lấy/Nạp kho hàng
         let inventoryData = sessionManager.getInventory();
         if (!inventoryData || (inventoryData.inventory && Object.keys(inventoryData.inventory).length === 0)) {
@@ -73,6 +74,29 @@ app.post('/chat', async (req, res) => {
         }
         const db = inventoryData?.inventory || inventoryData;
         let session = sessionManager.get(userId) || { cart: [], entities: {}, flags: {} };
+
+
+// 🔥 MỚI: BẪY LỆNH "DANH MỤC" - ƯU TIÊN CAO NHẤT ĐỂ HIỆN NHÓM HÀNG
+        if (text === "danh mục" || text === "menu" || text === "xem danh sách") {
+            const inventory = inventoryData?.inventory || inventoryData;
+            // Lấy danh sách các Group từ kho hàng
+            const dynamicGroups = [...new Set(Object.values(inventory).map(item => item.group).filter(Boolean))];
+            
+            if (dynamicGroups.length > 0) {
+                let menuReply = `Dạ shop Hương Kid chào Mẹ! Hiện em đang có sẵn các Danh mục mẫu này, mẹ muốn xem nhóm nào bấm nút dưới đây nhen:\n\n`;
+                // Biến mỗi nhóm thành một nút nhấn dạng [Tên Nhóm]
+                const groupButtons = dynamicGroups.map(g => `[${g.toUpperCase()}]`).join(" ");
+                menuReply += groupButtons;
+                menuReply += `\n\n*(Để tiện tư vấn chọn mẫu Mẹ nhắn cân nặng để em tư vấn size cho bé nhen!)*`;
+                
+                return res.json({ reply: menuReply });
+            }
+        }
+
+
+
+
+
 
         // 🔥 2. BẪY XÓA MÃ
         if (text.startsWith("xóa mã ")) {
@@ -114,10 +138,16 @@ app.post('/chat', async (req, res) => {
                     size: size
                 });
 
+
                 const updated = sessionManager.update(userId, { cart: session.cart });
+
                 return res.json({ 
-                    reply: `✅ Đã thêm mã **${mau} (Size ${size})** vào giỏ hàng!\n\nMẹ nhắn [GIỎ HÀNG] để em lên đơn nhen. ❤️` 
+                    reply: `✅ Đã thêm mã **${mau} (Size ${size})** vào giỏ hàng!\n\nMẹ nhắn [GIỎ HÀNG] để em lên đơn nhen. ❤️\n\n[Xem mẫu] [Danh mục]` 
                 });
+
+
+
+
             }
         }
 
@@ -200,7 +230,5 @@ app.post('/chat', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Hương Kid Bot đang chạy tại cổng: ${PORT}`);
-});
+const PORT = 3000;
+app.listen(PORT, () => console.log(`✅ Server chạy tại: http://localhost:${PORT}`));
