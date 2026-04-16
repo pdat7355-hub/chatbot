@@ -1,4 +1,3 @@
-
 const helpers = require('../../utils/helpers');
 
 const consultHandler = {
@@ -64,20 +63,40 @@ const consultHandler = {
             }
         }
 
-// --- TRƯỜNG HỢP 3: HIỆN MENU NHÓM (BIẾN THÀNH NÚT NHẤN) ---
-        const dynamicGroups = [...new Set(Object.values(inventory).map(item => item.group).filter(Boolean))];
-        
-        if (dynamicGroups.length > 0) {
-            let menuReply = `Dạ shop Hương Kid chào Mẹ! Hiện em đang có sẵn các mẫu này, mẹ muốn xem nhóm nào bấm nút dưới đây nhen:\n\n`;
-            
-            dynamicGroups.forEach(g => { 
-                // Biến mỗi nhóm thành một nút nhấn dạng [Tên Nhóm]
-                menuReply += `👉 **[${g.toUpperCase()}]**\n`; 
-            });
-            
-            menuReply += `\n*(Hoặc Mẹ nhắn cân nặng để em tư vấn size cho bé nhen!)*`;
-            return menuReply;
-        }
+
+
+
+
+
+
+
+
+
+// --- TRƯỜNG HỢP 3: HIỆN MENU NHÓM (DÙNG CHO LỆNH "DANH MỤC" HOẶC KHI CÓ CÂN NẶNG) ---
+const dynamicGroups = [...new Set(Object.values(inventory).map(item => item.group).filter(Boolean))];
+
+if (dynamicGroups.length > 0) {
+    let menuReply = "";
+    const userWeight = session.entities?.weight;
+
+    // 🌟 CẢI TIẾN: Nếu có cân nặng, tư vấn size và mời chọn nhóm hàng
+    if (userWeight) {
+        // Gọi hàm map từ helpers để lấy size (Đạt nhớ check file helpers đã export hàm này chưa nhé)
+        const size = helpers.mapWeightToSize ? helpers.mapWeightToSize(userWeight) : "tương ứng"; 
+        menuReply = `Dạ bé **${userWeight}kg** mặc **Size ${size}** là vừa in luôn nhen Mẹ! ❤️\n\n`;
+        menuReply += `Giờ Mẹ muốn xem mẫu cho bé trai hay bé gái để em lọc đúng size ${size} cho Mẹ chọn ạ:\n\n`;
+    } else {
+        // Nếu chỉ là bấm nút Danh Mục hoặc hỏi "mẫu mới"
+        menuReply = `Dạ shop Hương Kid chào Mẹ! Hiện em đang có sẵn các nhóm hàng này, Mẹ xem nhóm nào thì bấm nút nhen:\n\n`;
+    }
+
+    // Biến các nhóm thành nút bấm nằm cạnh nhau cho gọn và đẹp
+    const groupButtons = dynamicGroups.map(g => `[${g.toUpperCase()}]`).join(" ");
+    menuReply += groupButtons;
+
+    menuReply += `\n\n*(Mẹ cứ chọn nhóm, em sẽ hiện mẫu đúng size của bé ạ!)*`;
+    return menuReply;
+}
 
         return `Dạ shop Hương Kid chào Mẹ! Mẹ nhắn "Bé trai" hoặc "Bé gái" để em gửi mẫu mới nhen!`;
     }
