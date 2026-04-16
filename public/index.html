@@ -4,132 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Hương Kid - Shop Bé Trai</title>
-    <style>
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { 
-            font-family: -apple-system, system-ui, sans-serif;
-            background: #f0f2f5; margin: 0; padding: 0;
-            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
-        }
-        #header { 
-            background: #0084ff; color: white; padding: 15px; 
-            text-align: center; font-size: 18px; font-weight: bold; flex-shrink: 0;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        #messages { 
-            flex: 1; overflow-y: auto; padding: 15px; 
-            display: flex; flex-direction: column; gap: 12px; 
-            background: #ffffff;
-        }
-        .msg { 
-            max-width: 80%; padding: 10px 14px; border-radius: 18px; 
-            font-size: 16px; line-height: 1.4; word-wrap: break-word;
-        }
-        .user { align-self: flex-end; background: #0084ff; color: white; border-bottom-right-radius: 4px; }
-        .bot { align-self: flex-start; background: #e4e6eb; color: #050505; border-bottom-left-radius: 4px; }
-        
-        #input-area { 
-            padding: 10px; display: flex; background: white; 
-            border-top: 1px solid #ddd; align-items: center;
-            padding-bottom: calc(10px + env(safe-area-inset-bottom));
-        }
-        input { 
-            flex: 1; border: 1px solid #ddd; padding: 12px; 
-            border-radius: 20px; font-size: 16px; outline: none; background: #f0f2f5;
-        }
-        #sendBtn { 
-            background: #0084ff; color: white; border: none; 
-            width: 45px; height: 45px; border-radius: 50%; 
-            margin-left: 8px; cursor: pointer; display: flex;
-            align-items: center; justify-content: center;
-        }
-        .chat-img { width: 100%; max-width: 200px; border-radius: 8px; margin-top: 5px; }
-    </style>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    
-    <a href="https://zalo.me/84932546695" target="_blank" id="zalo-float" style="position: fixed; bottom: 90px; right: 20px; z-index: 9999;">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/9/91/Icon_Zalo.svg" width="55" height="55" style="border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: transform 0.3s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-</a>
-    
-    <div id="header">Hương Kid - Shop Bé Trai</div>
-    <div id="messages"></div>
-    <div id="input-area">
-        <input type="text" id="userInput" placeholder="Hỏi shop về size, mẫu mã..." autocomplete="off">
-        <button id="sendBtn">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
-        </button>
+    <header>HƯƠNG KID - SHOP BÉ TRAI</header>
+    <div id="chat-box">
+        <div class="msg bot">Dạ shop Hương Kid chào Đạt! Bạn cần em tư vấn mẫu nào hay xem giá mẫu mô rứa ạ?</div>
     </div>
-
-    <script>
-        const messageContainer = document.getElementById('messages');
-        const input = document.getElementById('userInput');
-        const btn = document.getElementById('sendBtn');
-
-        // Tạo ID người dùng ngẫu nhiên để lưu lịch sử
-        let userId = localStorage.getItem('hk_userId') || 'kh_' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('hk_userId', userId);
-
-        function addMsg(text, sender) {
-    if (!text) return;
-    const div = document.createElement('div');
-    div.className = 'msg ' + sender;
-
-    // Bước 1: Xử lý xuống dòng trước
-    let content = text.replace(/\n/g, '<br>');
-
-    // Bước 2: Xử lý mã [IMG]url[/IMG] - Ưu tiên xử lý cái này trước
-    content = content.replace(/\[IMG\]\s*(.*?)\s*\[\/IMG\]/gi, (match, url) => {
-        return `<img src="${url.trim()}" style="width:100%; max-width:250px; border-radius:10px; margin-top:8px; display:block; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">`;
-    });
-
-    // Bước 3: Nếu AI gửi link thô (không nằm trong thẻ IMG) thì mới biến thành ảnh
-    // Chỉ bắt các link kết thúc bằng đuôi ảnh phổ biến
-    const imgRegex = /(https?:\/\/[^\s<]+(?:\.jpg|\.png|\.webp|\.jpeg))/gi;
-    content = content.replace(imgRegex, (url) => {
-        // Kiểm tra xem link này đã nằm trong thẻ <img> ở bước 2 chưa để tránh lặp
-        if (content.includes(`src="${url}"`)) return url; 
-        return `<img src="${url}" style="width:100%; max-width:250px; border-radius:10px; margin-top:8px; display:block;">`;
-    });
-
-    div.innerHTML = content;
-    messageContainer.appendChild(div);
-    
-    // Cuộn xuống tin nhắn mới nhất
-    setTimeout(() => {
-        messageContainer.scrollTop = messageContainer.scrollHeight;
-    }, 100);
-}
-
-        async function sendMessage() {
-            const text = input.value.trim();
-            if (!text) return;
-
-            addMsg(text, 'user');
-            input.value = '';
-
-            try {
-                // Gọi đến API /chat của server trên Render
-                const res = await fetch('/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text, userId: userId })
-                });
-                
-                const data = await res.json();
-                addMsg(data.reply, 'bot');
-            } catch (e) {
-                addMsg("Dạ hệ thống bận tí, chị nhắn lại sau nha!", 'bot');
-            }
-        }
-
-        btn.onclick = sendMessage;
-        input.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
-
-        // Chào mừng khách khi vào trang
-        window.onload = () => {
-            addMsg("Dạ shop Hương Kid chào chị ạ! Chị cần tìm đồ cho bé mấy kg ạ?", 'bot');
-        };
-    </script>
+    <div id="input-area">
+        <input type="text" id="user-input" placeholder="Nhắn mẫu SP hoặc SĐT..." onkeypress="handleKey(event)">
+        <button id="send-btn" onclick="sendMsg()">➔</button>
+    </div>
+    <script src="js/chat.js"></script>
 </body>
 </html>
