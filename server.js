@@ -52,12 +52,25 @@ function buildCartReply(session, header) {
     return summary;
 }
 
+
+
+
+
 app.post('/chat', async (req, res) => {
     try {
         // Nhận userId từ client gửi lên để nhận diện khách cũ/mới
         const { userId } = req.body;
         const text = (req.body.message || "").toLowerCase().trim();
         const dimConfig = await googleSheets.getDimensions();
+
+        // 🔥 THÊM DÒNG NÀY ĐỂ NHÌN THẤY USER TRÊN RENDER
+        console.log(`------------------------------------------`);
+        console.log(`👤 KHÁCH HÀNG: [${userId}]`);
+        console.log(`💬 NỘI DUNG: ${text}`);
+        console.log(`------------------------------------------`);
+
+
+
         
         // 1. Lấy/Nạp kho hàng
         let inventoryData = sessionManager.getInventory();
