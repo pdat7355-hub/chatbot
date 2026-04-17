@@ -1,6 +1,13 @@
 console.log("🚀 Hệ thống Chat Hương Kid đã kích hoạt!");
 
-const userId = "Khach_" + Math.floor(Math.random() * 100000);
+// --- CƠ CHẾ NHẬN DIỆN KHÁCH HÀNG THÔNG MINH ---
+let userId = localStorage.getItem('huong_kid_user_id');
+if (!userId) {
+    userId = "Khach_" + Math.floor(Math.random() * 100000);
+    localStorage.setItem('huong_kid_user_id', userId);
+}
+// ----------------------------------------------
+
 window.cartCount = 0;
 
 window.sendMsg = async function(isSilent = false) {
@@ -27,12 +34,12 @@ window.sendMsg = async function(isSilent = false) {
         const response = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            // Gửi userId đã được lưu trữ để Server nhận diện khách quen
             body: JSON.stringify({ userId, message: text })
         });
         const data = await response.json();
 
         if (typingId) document.getElementById(typingId)?.remove();
-
         if (isSilent && (data.reply || "").includes("[[SILENT_UPDATE]]")) return;
         
         let reply = data.reply || "";
@@ -63,7 +70,7 @@ window.sendMsg = async function(isSilent = false) {
             });
         }
 
-        // 4. XỬ LÝ REGEX CÁC NÚT BẤM (Xác nhận, Giỏ hàng, Chọn mẫu)
+        // 4. XỬ LÝ REGEX CÁC NÚT BẤM
         reply = reply.replace(/\[CHỐT ĐƠN\]|(?:"Chốt đơn")|🚀 XÁC NHẬN CHỐT ĐƠN/gi, 
             `<button class="btn-select btn-red" style="display:block; width:100%;" onclick="window.autoPick('Chốt đơn')">🚀 XÁC NHẬN CHỐT ĐƠN</button>`);
 
@@ -78,11 +85,10 @@ window.sendMsg = async function(isSilent = false) {
             return `<button class="btn-category" onclick="window.autoPick('${name.trim()}')">✨ ${name.trim()}</button>`;
         });
 
-        // HIỂN THỊ
+        // HIỂN THỊ PHẢN HỒI
         let formattedReply = reply.replace(/\n/g, '<br>');
         box.innerHTML += `<div class="msg bot">${formattedReply}</div>`;
         
-        // SỬA LỖI CUỘN: Gọi hàm cuộn thông minh
         scrollToBottom(box);
 
     } catch (e) {
@@ -90,14 +96,11 @@ window.sendMsg = async function(isSilent = false) {
         if (typingId) document.getElementById(typingId)?.remove();
     }
 };
-// --- HÀM CUỘN THÔNG MINH (Bắt được cả khi có ảnh) ---
+
+// --- HÀM CUỘN THÔNG MINH ---
 function scrollToBottom(box) {
     if (!box) box = document.getElementById('chat-box');
-    
-    // Cuộn lần 1: Cho phần văn bản
     box.scrollTop = box.scrollHeight;
-
-    // Cuộn lần 2: Đợi ảnh load xong (nếu có) rồi cuộn lại cho chắc
     const images = box.querySelectorAll('img');
     images.forEach(img => {
         if (!img.complete) {
@@ -106,26 +109,21 @@ function scrollToBottom(box) {
     });
 }
 
-
-// --- SỬA LỖI ENTER (Gắn trực tiếp vào ô input) ---
-// Đợi trang load xong rồi gán sự kiện
+// --- SỬA LỖI ENTER ---
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('user-input');
     if (input) {
         input.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
-                e.preventDefault(); // Chặn xuống dòng
+                e.preventDefault();
                 window.sendMsg(false);
             }
         });
     }
 });
 
-
-
 window.autoPick = function(val) {
     const input = document.getElementById('user-input');
-    // Nếu là lệnh đặc biệt hoặc không chứa số (không phải mã sản phẩm)
     if (['Giỏ hàng', 'Chốt đơn', 'Hủy đơn'].includes(val) || !/\d/.test(val)) {
         input.value = val;
         window.sendMsg(false);
