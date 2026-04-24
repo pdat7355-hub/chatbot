@@ -1,49 +1,41 @@
+// processors/logicHandler/retain.js
 
 const retainHandler = {
-    handle: async (session, message, dimConfig) => {
+    handle: async (session, message, dimConfig, retainConfig = [], globalInventory = null) => {
         const text = message.toLowerCase();
 
-        if (text.includes("hủy") || text.includes("quay lại")) {
-            session.cart = [];
-            session.entities = { productCode: null, weight: null, address: null, phone: null };
-            session.flags = {};
+        // 1. ƯU TIÊN: Tìm câu trả lời khớp với từ khóa (Keywords)
+        let bestMatch = null;
+        
+        // Lọc lấy tất cả các dòng RETAIN trong Excel
+        const retainRules = (dimConfig || []).filter(d => d.zone === 'RETAIN');
+
+        for (const rule of retainRules) {
+            // Chuyển chuỗi keywords từ Excel (ví dụ: "đẹp, xinh, yêu") thành mảng
+            const keywords = String(rule.keywords || "").split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
             
-            let categoryButtons = "";
-            
-            // 🛠 CƠ CHẾ DÒ TÌM NHÓM HÀNG TỪ EXCEL
-            // Đạt lưu ý: dimConfig thường là một Mảng các Object dòng hàng
-            if (Array.isArray(dimConfig) && dimConfig.length > 0) {
-                const groupSet = new Set();
-
-                dimConfig.forEach(row => {
-                    // Dò tìm giá trị trong các cột phổ biến mà Đạt hay đặt
-                    // Mình quét cả 'nhóm', 'group', 'category' hoặc cột đầu tiên nếu không thấy
-                    const groupValue = row.nhóm || row.group || row.category || row.type || Object.values(row)[0];
-                    
-                    if (groupValue && isNaN(groupValue)) {
-                        groupSet.add(groupValue.toString().trim());
-                    }
-                });
-
-                // Chuyển Set thành danh sách nút bấm
-                [...groupSet].forEach(name => {
-                    categoryButtons += `👉 [✨ ${name.toUpperCase()}]\n`;
-                });
+            // Nếu khách nhắn có chứa một trong các từ khóa này
+            if (keywords.some(k => text.includes(k))) {
+                bestMatch = rule.content || rule.template;
+                break; // Tìm thấy câu khớp từ khóa thì lấy luôn
             }
-
-            // ⚠️ CỨU CÁNH: Nếu vẫn trống (do dimConfig không truyền tới được)
-            if (!categoryButtons) {
-                // Đạt kiểm tra lại file index.js xem đã truyền dimConfig vào handle() chưa nhen
-                categoryButtons = "👉 [✨ BÉ TRAI]\n👉 [✨ BÉ GÁI]\n👉 [✨ QUẢN CHÂU]\n";
-            }
-
-            return `Dạ vâng ạ! Hương Kid đã hủy đơn này nhen. ❤️\n\n` +
-                   `Mẹ muốn xem lại mẫu nào thì chọn ở dưới nhen:\n` +
-                   categoryButtons + 
-                   `\nHương Kid luôn sẵn sàng phục vụ Mẹ nhen! 🌸`;
         }
 
-        return "Dạ Hương Kid chào Mẹ nhen!";
+        // 2. NẾU KHÔNG KHỚP TỪ KHÓA: Tìm dòng "Chào hỏi" mặc định
+        // (Dòng RETAIN nào mà cột keywords để trống trong Excel)
+        if (!bestMatch) {
+            const defaultRule = retainRules.find(d => !d.keywords || d.keywords.trim() === "");
+            bestMatch = defaultRule?.content || defaultRule?.template;
+        }
+
+        // 3. TRẢ VỀ KẾT QUẢ
+        if (bestMatch) {
+            // Thay thế các biến nếu có
+            return bestMatch.replace(/{weight}/g, session.entities?.weight || "---");
+        }
+
+        // 4. PHÒNG HỜ (Nếu Excel trống rỗng)
+        return "Dạ Hương Kid chào Mẹ nhen! ❤️ Bé nhà mình hôm nay bao nhiêu kg rồi Mẹ nhỉ?";
     }
 };
 
