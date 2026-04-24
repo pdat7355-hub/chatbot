@@ -10,8 +10,8 @@ const helpers = {
     // 2. Quy đổi Cân nặng -> Size
     mapWeightToSize: (weightStr) => {
         const w = parseInt(weightStr);
-        if (isNaN(w) || w < 8) return null;
-        if (w >= 8 && w <= 10) return "1";
+        if (isNaN(w) || w < 5) return null;
+        if (w >= 5 && w <= 10) return "1";
         if (w > 10 && w <= 12) return "2";
         if (w > 12 && w <= 14) return "3";
         if (w > 14 && w <= 16) return "4";
@@ -29,30 +29,52 @@ const helpers = {
         return "2XL";
     },
 
-    // 3. Định dạng câu trả lời (Thay thế biến và link ảnh)
-    formatReply: (reply, session) => {
+    // 3. ĐỊNH DẠNG TỔNG LỰC (Cá nhân hóa theo dữ liệu khách hàng)
+    formatReply: (reply, session, globalInventory = null) => {
         if (!reply) return "";
         let finalReply = reply;
-        const { productCode, weight } = session.entities;
-        const inventory = session.inventoryData || {};
+        
+        const entities = session.entities || {};
+        const { productCode, weight, phone, address } = entities;
+        
+        // Lấy kho hàng
+        const inventory = (globalInventory && globalInventory.inventory) 
+                          ? globalInventory.inventory 
+                          : (globalInventory || {});
 
-        // Xử lý Mã hàng (xóa cụm ngoặc trước)
+        // --- A. Xử lý Địa chỉ & SĐT (Cá nhân hóa khách quen) ---
+        // Thay {{dia_chi}} hoặc {address} trong Excel
+        const displayAddress = address ? address : "địa chỉ cũ của Mẹ";
+        finalReply = finalReply.replace(/{{dia_chi}}|{address}/g, displayAddress);
+        
+        const displayPhone = phone ? phone : "số điện thoại nhen";
+        finalReply = finalReply.replace(/{{sdt}}|{phone}/g, displayPhone);
+
+        // --- B. Xử lý Mã hàng ---
         if (productCode) {
-            const code = productCode.toUpperCase();
+            const code = String(productCode).toUpperCase();
             finalReply = finalReply.replace(/\(Mẫu {productCode}\)/g, `(Mẫu ${code})`);
-            finalReply = finalReply.replace(/{productCode}/g, code);
+            finalReply = finalReply.replace(/{productCode}|{{ma_hang}}/g, code);
         } else {
             finalReply = finalReply.replace(/\(Mẫu {productCode}\)/g, "");
-            finalReply = finalReply.replace(/{productCode}/g, "");
+            finalReply = finalReply.replace(/{productCode}|{{ma_hang}}/g, "mẫu này");
         }
 
-        // Xử lý Link ảnh
+        // --- C. Xử lý Size & Cân nặng ---
+        const size = weight ? helpers.mapWeightToSize(weight) : null;
+        const sizeNote = size ? `Size ${size}` : "size chuẩn";
+        
+        finalReply = finalReply.replace(/{size}|{{size}}/g, sizeNote);
+        finalReply = finalReply.replace(/{weight}|{{can_nang}}/g, weight || "---");
+
+        // --- D. Xử lý Link ảnh ---
         if (finalReply.includes("{image_link}")) {
-            const pCode = productCode ? productCode.toUpperCase() : null;
+            const pCode = productCode ? String(productCode).toUpperCase() : null;
             if (pCode && inventory[pCode]) {
-                finalReply = finalReply.replace(/{image_link}/g, inventory[pCode].image || "tại kho nhen!");
+                const img = inventory[pCode].image;
+                finalReply = finalReply.replace(/{image_link}/g, img ? `📸 Ảnh đây Mẹ nhen: ${img}` : "tại kho nhen!");
             } else {
-                const samples = Object.values(inventory).slice(0, 3);
+                const samples = Object.values(inventory).slice(0, 2);
                 const links = samples.length > 0 
                     ? samples.map(p => `\n📸 ${p.name}: ${p.image}`).join("") 
                     : "tại kho nhen Mẹ!";
@@ -60,15 +82,8 @@ const helpers = {
             }
         }
 
-        // Xử lý Size
-        if (weight) {
-            const size = helpers.mapWeightToSize(weight);
-            finalReply = finalReply.replace(/{size}/g, size || "chuẩn");
-        } else {
-            finalReply = finalReply.replace(/{size}/g, "chuẩn");
-        }
-
-        return finalReply.replace(/\s+/g, ' ').trim();
+        // Dọn dẹp khoảng trắng thừa
+        return finalReply.replace(/\s\s+/g, ' ').trim();
     }
 };
 
