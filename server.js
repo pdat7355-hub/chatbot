@@ -134,14 +134,24 @@ async function processChatLogic(userId, message) {
 // 4. HÀM GỬI TIN NHẮN QUA API FACEBOOK
 // =========================================================
 async function callSendAPI(sender_psid, responseText) {
+    // 1. Tự động dọn dẹp HTML nếu responseText chứa mã HTML
+    let cleanText = responseText
+        .replace(/<img[^>]*>/g, "🖼️ [Hình ảnh] ") // Thay thẻ img bằng icon
+        .replace(/<div[^>]*>/g, "")             // Xóa thẻ mở div
+        .replace(/<\/div>/g, "\n")              // Thẻ đóng div thì xuống dòng
+        .replace(/<br\s*\/?>/g, "\n")           // Thẻ br thì xuống dòng
+        .replace(/<\/?[^>]+(>|$)/g, "");         // Xóa tất cả các thẻ còn lại
+
     const request_body = {
         "recipient": { "id": sender_psid },
-        "message": { "text": responseText }
+        "message": { "text": cleanText.trim() }
     };
+
     try {
         await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, request_body);
+        console.log("✅ Đã gửi tin nhắn sạch tới FB");
     } catch (err) {
-        console.error("❌ Lỗi gửi tin nhắn FB:", err.response?.data || err.message);
+        console.error("❌ Lỗi FB:", err.response?.data || err.message);
     }
 }
 
