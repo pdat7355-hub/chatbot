@@ -136,14 +136,14 @@ async function processChatLogic(userId, message) {
 async function callSendAPI(sender_psid, content) {
     let message_data = {};
 
-    // Nếu content là mảng -> Gửi dạng thẻ quay vòng (Generic Template)
+    // 1. TRƯỜNG HỢP: Gửi danh sách sản phẩm (Mảng) -> Chuyển thành Generic Template (Thẻ quay vòng)
     if (Array.isArray(content)) {
         message_data = {
             "attachment": {
                 "type": "template",
                 "payload": {
                     "template_type": "generic",
-                    "elements": content.map(item => ({
+                    "elements": content.slice(0, 10).map(item => ({ // Facebook tối đa 10 thẻ
                         "title": item.title,
                         "image_url": item.image_url,
                         "subtitle": item.subtitle,
@@ -158,8 +158,18 @@ async function callSendAPI(sender_psid, content) {
                 }
             }
         };
-    } else {
-        // Nếu là văn bản bình thường
+    } 
+    // 2. TRƯỜNG HỢP: Content là Object (Có sẵn cấu trúc attachment hoặc quick_replies từ consult.js)
+    else if (typeof content === 'object' && content !== null) {
+        // Nếu consult.js đã đóng gói sẵn type: "template" hoặc có quick_replies
+        if (content.type === "template") {
+            message_data = { "attachment": content };
+        } else {
+            message_data = content; // Giữ nguyên cấu trúc (dành cho Quick Replies)
+        }
+    }
+    // 3. TRƯỜNG HỢP: Văn bản thuần túy (String)
+    else {
         message_data = { "text": content };
     }
 
@@ -168,9 +178,10 @@ async function callSendAPI(sender_psid, content) {
             "recipient": { "id": sender_psid },
             "message": message_data
         });
-        console.log("✅ [FB] Đã gửi nội dung tới khách!");
+        console.log("✅ [FB] Đã gửi nội dung tới khách thành công!");
     } catch (err) {
-        console.error("❌ Lỗi FB:", JSON.stringify(err.response?.data || err.message));
+        // Log chi tiết lỗi để Đạt dễ kiểm tra link ảnh hoặc Token
+        console.error("❌ Lỗi FB API:", JSON.stringify(err.response?.data || err.message));
     }
 }
 
