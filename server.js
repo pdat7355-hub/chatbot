@@ -14,7 +14,7 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // --- BIẾN CẤU HÌNH FACEBOOK (Lấy từ Render Environment) ---
-const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
+const PAGE_ACCESS_TOKEN = process.env.FB_PAGE_ACCESS_TOKEN;
 const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN || "huong_kid_secure_2026"; 
 
 // --- KHỞI TẠO BOT ---
