@@ -1,4 +1,3 @@
-
 const googleSheets = require('../../services/googleSheets');
 
 const fallbackHandler = {
