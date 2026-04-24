@@ -133,25 +133,44 @@ async function processChatLogic(userId, message) {
 // =========================================================
 // 4. HÀM GỬI TIN NHẮN QUA API FACEBOOK
 // =========================================================
-async function callSendAPI(sender_psid, responseText) {
-    // 1. Tự động dọn dẹp HTML nếu responseText chứa mã HTML
-    let cleanText = responseText
-        .replace(/<img[^>]*>/g, "🖼️ [Hình ảnh] ") // Thay thẻ img bằng icon
-        .replace(/<div[^>]*>/g, "")             // Xóa thẻ mở div
-        .replace(/<\/div>/g, "\n")              // Thẻ đóng div thì xuống dòng
-        .replace(/<br\s*\/?>/g, "\n")           // Thẻ br thì xuống dòng
-        .replace(/<\/?[^>]+(>|$)/g, "");         // Xóa tất cả các thẻ còn lại
+async function callSendAPI(sender_psid, content) {
+    let message_data = {};
 
-    const request_body = {
-        "recipient": { "id": sender_psid },
-        "message": { "text": cleanText.trim() }
-    };
+    // Nếu content là mảng -> Gửi dạng thẻ quay vòng (Generic Template)
+    if (Array.isArray(content)) {
+        message_data = {
+            "attachment": {
+                "type": "template",
+                "payload": {
+                    "template_type": "generic",
+                    "elements": content.map(item => ({
+                        "title": item.title,
+                        "image_url": item.image_url,
+                        "subtitle": item.subtitle,
+                        "buttons": [
+                            {
+                                "type": "postback",
+                                "title": `🛒 CHỌN ${item.id}`,
+                                "payload": `ORDER_${item.id}`
+                            }
+                        ]
+                    }))
+                }
+            }
+        };
+    } else {
+        // Nếu là văn bản bình thường
+        message_data = { "text": content };
+    }
 
     try {
-        await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, request_body);
-        console.log("✅ Đã gửi tin nhắn sạch tới FB");
+        await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
+            "recipient": { "id": sender_psid },
+            "message": message_data
+        });
+        console.log("✅ [FB] Đã gửi nội dung tới khách!");
     } catch (err) {
-        console.error("❌ Lỗi FB:", err.response?.data || err.message);
+        console.error("❌ Lỗi FB:", JSON.stringify(err.response?.data || err.message));
     }
 }
 
