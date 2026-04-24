@@ -12,13 +12,125 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: 'v4', auth });
 const SPREADSHEET_ID = process.env.GOOGLE_ID;
 
+// --- CẤU HÌNH VỊ TRÍ CỘT (CHỈ CẦN SỬA Ở ĐÂY) ---
+const COLUMN_MAP = {
+    USER_ID: 0,      // Cột A
+    HO_TEN: 1,       // Cột B
+    SDT: 2,          // Cột C
+    DIA_CHI: 3,      // Cột D
+    TEN_BE: 4,       // Cột E
+    TUOI_BE: 5,      // Cột F
+    CAN_NANG_OLD: 6, // Cột G (Cũ)
+    CAN_NANG_1: 7, // Cột H (Mới)
+    CAN_NANG_2: 10, // Cột H (Mới)
+    CAN_NANG_3: 13, // Cột H (Mới)
+    LOG_TIME: 15     // Cột P (Sẽ tự động mở rộng dải ô đến cột này)
+};
+
+// Hàm hỗ trợ chuyển số thứ tự cột thành chữ cái (0 -> A, 15 -> P)
+const columnToLetter = (column) => {
+    let temp, letter = '';
+    while (column > 0) {
+        temp = (column - 1) % 26;
+        letter = String.fromCharCode(temp + 65) + letter;
+        column = (column - temp - 1) / 26;
+    }
+    return letter || 'A';
+};
+
+// Tự động tính toán cột xa nhất để lấy dữ liệu
+const MAX_COL_INDEX = Math.max(...Object.values(COLUMN_MAP));
+const AUTO_RANGE = `DANH_SACH_KHACH!A:${columnToLetter(MAX_COL_INDEX + 1)}`;
+
 const googleSheets = {
-    // --- 1. LẤY TOÀN BỘ KHO HÀNG & NHÓM HÀNG ĐỘNG ---
+ 
+
+    // --- 1. TRA CỨU KHÁCH HÀNG (Đã dùng AUTO_RANGE) ---
+    findCustomerById: async (userId) => {
+        try {
+            const res = await sheets.spreadsheets.values.get({
+                spreadsheetId: SPREADSHEET_ID,
+                range: AUTO_RANGE,
+            });
+            const rows = res.data.values;
+            if (!rows || rows.length <= 1) return null;
+
+            const rowIndex = rows.findIndex(row => row[COLUMN_MAP.USER_ID] === userId);
+            if (rowIndex !== -1) {
+                const row = rows[rowIndex];
+                return {
+                    Ho_Ten: row[COLUMN_MAP.HO_TEN] || "",
+                    SDT: row[COLUMN_MAP.SDT] || "",
+                    Dia_Chi: row[COLUMN_MAP.DIA_CHI] || "",
+                    Can_Nang_1: row[COLUMN_MAP.CAN_NANG_1] ||row[COLUMN_MAP.CAN_NANG_2] ||row[COLUMN_MAP.CAN_NANG_3] || row[COLUMN_MAP.CAN_NANG_OLD] || ""
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error("❌ Lỗi tìm khách hàng:", error.message);
+            return null;
+        }
+    },
+
+    // --- 2. ĐỒNG BỘ KHÁCH HÀNG (Tự động mở rộng mảng) ---
+    syncCustomerToExcel: async (userId, data) => {
+        try {
+            const res = await sheets.spreadsheets.values.get({
+                spreadsheetId: SPREADSHEET_ID,
+                range: AUTO_RANGE,
+            });
+            const rows = res.data.values || [];
+            const rowIndex = rows.findIndex(row => row[COLUMN_MAP.USER_ID] === userId);
+            const now = new Date().toLocaleString('vi-VN');
+
+            if (rowIndex !== -1) {
+                // KHÁCH CŨ: Cập nhật dòng
+                let updatedRow = [...rows[rowIndex]];
+                
+                // Đảm bảo mảng đủ độ dài để ghi vào cột xa nhất
+                while (updatedRow.length <= MAX_COL_INDEX) updatedRow.push("");
+
+                if (data.name) updatedRow[COLUMN_MAP.HO_TEN] = data.name;
+                if (data.phone) updatedRow[COLUMN_MAP.SDT] = data.phone;
+                if (data.address) updatedRow[COLUMN_MAP.DIA_CHI] = data.address;
+                if (data.weight) updatedRow[COLUMN_MAP.CAN_NANG_1] = data.weight;
+                updatedRow[COLUMN_MAP.LOG_TIME] = now;
+
+                await sheets.spreadsheets.values.update({
+                    spreadsheetId: SPREADSHEET_ID,
+                    range: `DANH_SACH_KHACH!A${rowIndex + 1}`,
+                    valueInputOption: 'USER_ENTERED',
+                    resource: { values: [updatedRow] },
+                });
+                console.log(`✅ Cập nhật khách cũ thành công.`);
+            } else {
+                // KHÁCH MỚI: Tạo mảng rỗng theo độ dài cần thiết
+                const newRow = new Array(MAX_COL_INDEX + 1).fill("");
+                newRow[COLUMN_MAP.USER_ID] = userId;
+                newRow[COLUMN_MAP.HO_TEN] = data.name || "";
+                newRow[COLUMN_MAP.SDT] = data.phone || "";
+                newRow[COLUMN_MAP.DIA_CHI] = data.address || "";
+                newRow[COLUMN_MAP.CAN_NANG_1] = data.weight || "";
+                newRow[COLUMN_MAP.LOG_TIME] = now;
+
+                await sheets.spreadsheets.values.append({
+                    spreadsheetId: SPREADSHEET_ID,
+                    range: 'DANH_SACH_KHACH!A1',
+                    valueInputOption: 'USER_ENTERED',
+                    resource: { values: [newRow] },
+                });
+                console.log(`✅ Đã thêm khách mới.`);
+            }
+        } catch (error) {
+            console.error("❌ Lỗi đồng bộ Excel:", error.message);
+        }
+    },
+   // --- 3. LẤY KHO HÀNG (GIỮ NGUYÊN) ---
     getInventoryData: async () => {
         try {
             const res = await sheets.spreadsheets.values.get({
                 spreadsheetId: SPREADSHEET_ID,
-                range: 'khohang!A:Z', 
+                range: 'KhoHang!A:Z',
             });
             const rows = res.data.values;
             if (!rows || rows.length <= 1) return { inventory: {}, groups: [] };
@@ -28,14 +140,13 @@ const googleSheets = {
             const groupSet = new Set(); 
 
             const getVal = (row, colName) => {
-                const index = header.indexOf(colName);
+                const index = header.findIndex(h => h.trim().toLowerCase() === colName.toLowerCase());
                 return (index !== -1 && row[index]) ? row[index].toString().trim() : "";
             };
 
             rows.slice(1).forEach(row => {
                 const code = getVal(row, "Code").toUpperCase();
                 const groupName = getVal(row, "Group");
-                
                 if (code) {
                     inventory[code] = {
                         code,
@@ -49,19 +160,12 @@ const googleSheets = {
                     if (groupName) groupSet.add(groupName);
                 }
             });
-
-            const groups = Array.from(groupSet); 
-            console.log(`🚀 Đã nạp ${Object.keys(inventory).length} mẫu và ${groups.length} nhóm hàng từ Excel.`);
-            
-            // Trả về cả inventory và groups để dùng cho analyzer và consult
-            return { inventory, groups }; 
+            return { inventory, groups: Array.from(groupSet) }; 
         } catch (error) {
-            console.error("❌ Lỗi nạp kho từ Google Sheets:", error.message);
             return { inventory: {}, groups: [] };
         }
     },
-
-    // --- 2. LẤY DỮ LIỆU CẤU HÌNH (DIMENSIONS) ---
+    // --- 4. LẤY DỮ LIỆU CẤU HÌNH (DIMENSIONS) ---
     getDimensions: async () => {
         try {
             const res = await sheets.spreadsheets.values.get({
@@ -88,7 +192,7 @@ const googleSheets = {
         }
     },
 
-    // --- 3. GHI DÒNG MỚI (LƯU ĐƠN HÀNG/LOG) ---
+    // --- 5. GHI DÒNG MỚI (LƯU ĐƠN HÀNG/LOG) ---
     appendRow: async (sheetName, rowData) => {
         try {
             await sheets.spreadsheets.values.append({
